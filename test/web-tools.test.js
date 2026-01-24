@@ -10,6 +10,7 @@ const mockPage = {
   content: mock.fn(async () => '<html>Mock Content</html>'),
   url: mock.fn(() => 'http://example.com/final'),
   waitForSelector: mock.fn(async () => {}),
+  waitForFunction: mock.fn(async () => {}),
   close: mock.fn(async () => {}),
 };
 

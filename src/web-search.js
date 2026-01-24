@@ -41,7 +41,13 @@ async function searchDuckDuckGo(
       return items;
     }, maxResults);
 
-    return results;
+    // Capture HTML if no results found
+    let html;
+    if (results.length === 0) {
+        html = await page.content();
+    }
+
+    return { results, html };
   } finally {
     await page.close();
     await browser.close();
@@ -61,43 +67,62 @@ async function searchGoogle(
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
 
-    await page.waitForSelector('#search', { timeout: timeoutMs }).catch(() => {});
+    // Wait for search results to load using a semantic selector (a > h3)
+    // This is robust against class name changes.
+    await page.waitForFunction(() => document.querySelectorAll('a > h3').length >= 3, { timeout: timeoutMs }).catch(() => {});
 
     const results = await page.evaluate((max) => {
       const items = [];
-      const resultElements = document.querySelectorAll('.g');
+      // Find all H3s inside A tags - this is the semantic structure of a result title
+      const titleElements = document.querySelectorAll('a h3');
 
-      for (const el of resultElements) {
+      for (const titleEl of titleElements) {
         if (items.length >= max) break;
         
-        const titleEl = el.querySelector('h3');
-        const linkEl = el.querySelector('a');
+        const linkEl = titleEl.closest('a');
+        if (!linkEl) continue;
+
+        const url = linkEl.getAttribute('href') || '';
+        // Filter out internal Google links or empty URLs
+        if (!url || url.startsWith('/search') || url.includes('google.com/search')) continue;
+
+        const title = titleEl.innerText?.trim() || '';
         
-        // Try to find snippet
+        // Snippet Extraction
         let snippet = '';
-        const snippetEl = el.querySelector('[style*="-webkit-line-clamp"]');
-        if (snippetEl) {
-          snippet = snippetEl.textContent?.trim() || '';
-        } else {
-           // Fallback
-           const text = el.innerText || '';
-           const lines = text.split('\n');
-           // Very rough heuristic
-           if (lines.length > 2) snippet = lines.find(l => l.length > 50) || '';
+        let resultContainer = linkEl.parentElement;
+        // Go up to find a container that likely holds the whole result
+        for (let i = 0; i < 5; i++) {
+            if (resultContainer && resultContainer.parentElement && resultContainer.parentElement.tagName !== 'BODY') {
+                resultContainer = resultContainer.parentElement;
+            }
+        }
+        
+        if (resultContainer) {
+            const textBlocks = Array.from(resultContainer.querySelectorAll('div, span, p'))
+                .map(el => el.innerText?.trim())
+                .filter(txt => txt && txt.length > 30 && txt !== title && !txt.includes('›'));
+            
+            // The actual snippet is usually the longest remaining text block
+            if (textBlocks.length > 0) {
+                snippet = textBlocks.reduce((a, b) => a.length > b.length ? a : b);
+            }
         }
 
-        if (titleEl && linkEl) {
-            items.push({
-            title: titleEl.textContent?.trim() || '',
-            url: linkEl.getAttribute('href') || '',
-            snippet: snippet,
-            });
+        if (title && url) {
+            items.push({ title, url, snippet });
         }
       }
       return items;
     }, maxResults);
 
-    return results;
+    // Capture HTML if no results found
+    let html;
+    if (results.length === 0) {
+        html = await page.content();
+    }
+
+    return { results, html };
   } finally {
     await page.close();
     await browser.close();
@@ -140,7 +165,13 @@ async function searchBing(
       return items;
     }, maxResults);
 
-    return results;
+    // Capture HTML if no results found
+    let html;
+    if (results.length === 0) {
+        html = await page.content();
+    }
+
+    return { results, html };
   } finally {
     await page.close();
     await browser.close();
@@ -154,17 +185,17 @@ export async function searchWeb({
   timeoutMs = 15000,
   headless = true,
 }) {
-  let results;
+  let output;
 
   switch (engine) {
     case 'duckduckgo':
-      results = await searchDuckDuckGo(query, maxResults, timeoutMs, headless);
+      output = await searchDuckDuckGo(query, maxResults, timeoutMs, headless);
       break;
     case 'google':
-      results = await searchGoogle(query, maxResults, timeoutMs, headless);
+      output = await searchGoogle(query, maxResults, timeoutMs, headless);
       break;
     case 'bing':
-      results = await searchBing(query, maxResults, timeoutMs, headless);
+      output = await searchBing(query, maxResults, timeoutMs, headless);
       break;
     default:
       throw new Error(`Unknown search engine: ${engine}`);
@@ -173,7 +204,8 @@ export async function searchWeb({
   return {
     query,
     engine,
-    results,
+    results: output.results,
     searchedAt: new Date().toISOString(),
+    fallback_result_html: output.html,
   };
 }
