@@ -10,9 +10,9 @@ const server = new McpServer({
 	version: "0.1.0",
 });
 
-// web_fetch - Fetch and extract content from a web page
+// friendly_fetch - Fetch and extract content from a web page
 server.registerTool(
-	"web_fetch",
+	"friendly_fetch",
 	{
 		title: "Fetch Web Page",
 		description:
@@ -66,9 +66,9 @@ server.registerTool(
 	},
 );
 
-// web_search - Search the web using a search engine
+// friendly_search - Search the web using a search engine
 server.registerTool(
-	"web_search",
+	"friendly_search",
 	{
 		title: "Search the Web",
 		description:

@@ -61,7 +61,7 @@ Replace `/path/to/mcp-research-friend` with the actual path to this folder on yo
 
 ## Available tools
 
-### web_fetch
+### friendly_fetch
 
 Fetches a web page and extracts its content.
 
@@ -73,16 +73,27 @@ Fetches a web page and extracts its content.
 - `includeHtml` - Set to `true` if you also want the raw HTML
 - `headless` - Set to `false` to see the browser window (useful for debugging)
 
-### web_search
+### friendly_search
 
 Searches the web and returns a list of results.
 
 **Parameters:**
 - `query` (required) - What to search for
-- `engine` - Which search engine to use (`duckduckgo`, `google`, or `bing`)
+- `engine` - Which search engine to use (`duckduckgo` or `google`)
 - `maxResults` - How many results to return (default: 10, maximum: 50)
 - `timeoutMs` - How long to wait before giving up (default: 15 seconds)
 - `headless` - Set to `false` to see the browser window
+
+**Returns:**
+- `query` - The search query that was used
+- `engine` - Which search engine was used
+- `results` - Array of results, each with `title`, `url`, and `snippet`
+- `searchedAt` - ISO timestamp of when the search was performed
+- `fallback_result_html` - Raw HTML of the page (only included if no results were found)
+- `debug_info` - Diagnostic information about the search attempt
+
+**CAPTCHA handling:**
+If a CAPTCHA is detected while running in headless mode, the tool automatically retries with a visible browser window. This gives you a chance to solve the CAPTCHA manually. The `debug_info.retried` field indicates whether this fallback was used.
 
 ## Troubleshooting
 

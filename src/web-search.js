@@ -240,10 +240,9 @@ export async function searchWeb({
 }) {
 	const userDataDir = path.resolve(process.cwd(), ".browser-data");
 
-	const runSearch = async (isHeadless, jsEnabled = true) => {
+	const runSearch = async (isHeadless) => {
 		const context = await chromium.launchPersistentContext(userDataDir, {
 			headless: isHeadless,
-			javaScriptEnabled: jsEnabled,
 			args: ["--disable-blink-features=AutomationControlled"],
 			viewport: { width: 1280, height: 720 },
 		});
@@ -274,9 +273,6 @@ export async function searchWeb({
 						timeoutMs,
 					);
 					break;
-				case "bing":
-					output = await performSearchBing(page, query, maxResults, timeoutMs);
-					break;
 				default:
 					throw new Error(`Unknown search engine: ${engine}`);
 			}
@@ -296,9 +292,7 @@ export async function searchWeb({
 	};
 
 	try {
-		// For Bing, try disabling JS first to avoid dynamic redirects/blocks
-		const jsEnabled = engine !== "bing";
-		const output = await runSearch(headless, jsEnabled);
+		const output = await runSearch(headless);
 
 		return {
 			query,
@@ -308,7 +302,6 @@ export async function searchWeb({
 			fallback_result_html: output.html,
 			debug_info: {
 				mode: "headless",
-				js_enabled: jsEnabled,
 				captcha_detected: false,
 				retried: false,
 				final_url: output.url,
@@ -318,8 +311,7 @@ export async function searchWeb({
 	} catch (error) {
 		if (error.message === "CAPTCHA_DETECTED") {
 			if (headless) {
-				// On retry, definitely turn JS back on in case it's needed for the captcha solving
-				const output = await runSearch(false, true);
+				const output = await runSearch(false);
 
 				return {
 					query,
@@ -329,7 +321,6 @@ export async function searchWeb({
 					fallback_result_html: output.html,
 					debug_info: {
 						mode: "headed_fallback",
-						js_enabled: true,
 						captcha_detected: true,
 						retried: true,
 						final_url: output.url,
