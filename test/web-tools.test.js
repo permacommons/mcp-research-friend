@@ -1,47 +1,14 @@
 import assert from "node:assert";
-import { describe, it, mock } from "node:test";
+import { describe, it } from "node:test";
+import { fetchWebPage } from "../src/web-fetch.js";
+import { searchWeb } from "../src/web-search.js";
 
-// Mock objects
-const mockPage = {
-	goto: mock.fn(async () => ({})),
-	waitForTimeout: mock.fn(async () => {}),
-	evaluate: mock.fn(async () => {}),
-	title: mock.fn(async () => "Mock Title"),
-	content: mock.fn(async () => "<html>Mock Content</html>"),
-	url: mock.fn(() => "http://example.com/final"),
-	waitForSelector: mock.fn(async () => {}),
-	waitForFunction: mock.fn(async () => {}),
-	close: mock.fn(async () => {}),
-	$: mock.fn(async () => null), // Mock finding element (for captcha check)
-	innerText: mock.fn(async () => "Mock Body Text"),
-};
-
-const mockBrowser = {
-	newPage: mock.fn(async () => mockPage),
-	close: mock.fn(async () => {}),
-	pages: mock.fn(() => []), // Mock pages() for context cleanup
-};
-
-const mockChromium = {
-	launch: mock.fn(async () => mockBrowser),
-	launchPersistentContext: mock.fn(async () => mockBrowser),
-};
-
-// Mock the module before importing dependencies
-mock.module("playwright", {
-	namedExports: {
-		chromium: mockChromium,
-	},
-});
-
-// Import the modules under test
-const { fetchWebPage } = await import("../src/web-fetch.js");
-const { searchWeb } = await import("../src/web-search.js");
-
-describe("Research Friend Tools", () => {
-	it("fetchWebPage should return page content", async () => {
-		// Setup specific mock responses for this test
-		mockPage.evaluate.mock.mockImplementation(async (script) => {
+// Create mock chromium for testing
+function createMockChromium() {
+	const mockPage = {
+		goto: async () => ({}),
+		waitForTimeout: async () => {},
+		evaluate: async (script) => {
 			if (typeof script === "string") {
 				if (script.includes("document.body?.innerText"))
 					return "Mock Body Text";
@@ -49,11 +16,70 @@ describe("Research Friend Tools", () => {
 					return { description: "Mock Description" };
 			}
 			return null;
-		});
+		},
+		title: async () => "Mock Title",
+		content: async () => "<html><body>Mock Content</body></html>",
+		url: () => "http://example.com/final",
+		waitForSelector: async () => {},
+		waitForFunction: async () => {},
+		close: async () => {},
+		$: async () => null,
+	};
+
+	const mockBrowser = {
+		newPage: async () => mockPage,
+		close: async () => {},
+		pages: () => [],
+	};
+
+	return {
+		launch: async () => mockBrowser,
+		launchPersistentContext: async () => mockBrowser,
+	};
+}
+
+// Create mock chromium that returns search results
+function createSearchMockChromium() {
+	const mockPage = {
+		goto: async () => ({}),
+		waitForSelector: async () => {},
+		waitForFunction: async () => {},
+		url: () => "https://duckduckgo.com/?q=test",
+		title: async () => "test - DuckDuckGo",
+		content: async () => "<html></html>",
+		$: async () => null,
+		close: async () => {},
+		evaluate: async (fn) => {
+			if (typeof fn === "function") {
+				return [
+					{ title: "Result 1", url: "http://r1.com", snippet: "Snippet 1" },
+					{ title: "Result 2", url: "http://r2.com", snippet: "Snippet 2" },
+				];
+			}
+			return "";
+		},
+	};
+
+	const mockContext = {
+		newPage: async () => mockPage,
+		close: async () => {},
+		pages: () => [],
+	};
+
+	return {
+		launch: async () => mockContext,
+		launchPersistentContext: async () => mockContext,
+	};
+}
+
+describe("Research Friend Tools", () => {
+	it("fetchWebPage should return page content", async () => {
+		const mockChromium = createMockChromium();
 
 		const result = await fetchWebPage({
 			url: "http://example.com",
 			outputFormat: "text",
+			_chromium: mockChromium,
 		});
 
 		assert.strictEqual(result.url, "http://example.com");
@@ -61,42 +87,31 @@ describe("Research Friend Tools", () => {
 		assert.strictEqual(result.title, "Mock Title");
 		assert.strictEqual(result.content, "Mock Body Text");
 		assert.strictEqual(result.meta.description, "Mock Description");
-		assert.strictEqual(mockChromium.launch.mock.callCount(), 1);
 	});
 
 	it("searchWeb should return search results", async () => {
-		// Reset mock call count if needed, but easier to just check functionality
+		const mockChromium = createSearchMockChromium();
 
-		// Setup mock for search results extraction
-		mockPage.evaluate.mock.mockImplementation(async (fn, _arg) => {
-			if (typeof fn === "function") {
-				// Simulate the browser context function returning items
-				return [
-					{ title: "Result 1", url: "http://r1.com", snippet: "Snippet 1" },
-					{ title: "Result 2", url: "http://r2.com", snippet: "Snippet 2" },
-				];
-			}
-			return [];
+		const result = await searchWeb({
+			query: "test query",
+			_chromium: mockChromium,
 		});
-
-		const result = await searchWeb({ query: "test query" });
 
 		assert.strictEqual(result.query, "test query");
 		assert.strictEqual(result.engine, "duckduckgo");
 		assert.strictEqual(result.results.length, 2);
 		assert.strictEqual(result.results[0].title, "Result 1");
-		assert.strictEqual(
-			mockChromium.launchPersistentContext.mock.callCount(),
-			1,
-		);
 	});
 
 	it("searchWeb should support google engine", async () => {
-		const result = await searchWeb({ query: "test query", engine: "google" });
+		const mockChromium = createSearchMockChromium();
+
+		const result = await searchWeb({
+			query: "test query",
+			engine: "google",
+			_chromium: mockChromium,
+		});
+
 		assert.strictEqual(result.engine, "google");
-		assert.strictEqual(
-			mockChromium.launchPersistentContext.mock.callCount(),
-			2,
-		);
 	});
 });

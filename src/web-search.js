@@ -237,11 +237,13 @@ export async function searchWeb({
 	maxResults = 10,
 	timeoutMs = 15000,
 	headless = true,
+	// Dependency injection for testing
+	_chromium = chromium,
 }) {
 	const userDataDir = path.resolve(process.cwd(), ".browser-data");
 
 	const runSearch = async (isHeadless) => {
-		const context = await chromium.launchPersistentContext(userDataDir, {
+		const context = await _chromium.launchPersistentContext(userDataDir, {
 			headless: isHeadless,
 			args: ["--disable-blink-features=AutomationControlled"],
 			viewport: { width: 1280, height: 720 },

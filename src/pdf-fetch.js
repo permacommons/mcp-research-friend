@@ -89,6 +89,8 @@ export async function fetchPdf({
 	offset = 0,
 	search = null,
 	contextChars = 200,
+	// Dependency injection for testing
+	_PDFParse = PDFParse,
 }) {
 	// Check cache first
 	const cached = getFromCache(url);
@@ -98,7 +100,7 @@ export async function fetchPdf({
 		fullText = cached.text;
 		info = cached.info;
 	} else {
-		const parser = new PDFParse({ url });
+		const parser = new _PDFParse({ url });
 		try {
 			const [textResult, infoResult] = await Promise.all([
 				parser.getText(),

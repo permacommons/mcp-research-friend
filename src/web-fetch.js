@@ -25,8 +25,10 @@ export async function fetchWebPage({
 	slowMoMs,
 	holdOpenMs = 0,
 	outputFormat = "markdown",
+	// Dependency injection for testing
+	_chromium = chromium,
 }) {
-	const browser = await chromium.launch({
+	const browser = await _chromium.launch({
 		headless,
 		slowMo: slowMoMs,
 	});
