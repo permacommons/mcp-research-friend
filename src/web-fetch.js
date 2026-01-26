@@ -1,4 +1,12 @@
 import { chromium } from "playwright";
+import { Readability } from "@mozilla/readability";
+import TurndownService from "turndown";
+import { JSDOM } from "jsdom";
+
+const turndown = new TurndownService({
+	headingStyle: "atx",
+	codeBlockStyle: "fenced",
+});
 
 const truncate = (value, maxChars) => {
 	if (value.length <= maxChars) {
@@ -16,6 +24,7 @@ export async function fetchWebPage({
 	headless = true,
 	slowMoMs,
 	holdOpenMs = 0,
+	outputFormat = "markdown",
 }) {
 	const browser = await chromium.launch({
 		headless,
@@ -62,26 +71,54 @@ export async function fetchWebPage({
     `);
 
 		const title = await page.title();
-		const rawText = await page.evaluate(
-			`(() => document.body?.innerText || '')()`,
-		);
-		const rawHtml = includeHtml ? await page.content() : "";
+		const rawHtml = await page.content();
 
-		const { value: text, truncated: textTruncated } = truncate(
-			rawText,
-			maxChars,
-		);
+		let content;
+		let contentTruncated = false;
+
+		if (outputFormat === "markdown") {
+			// Use Readability to extract main content, then convert to markdown
+			const dom = new JSDOM(rawHtml, { url: page.url() });
+			const reader = new Readability(dom.window.document);
+			const article = reader.parse();
+
+			if (article?.content) {
+				const markdown = turndown.turndown(article.content);
+				const result = truncate(markdown, maxChars);
+				content = result.value;
+				contentTruncated = result.truncated;
+			} else {
+				// Fallback to converting full body if Readability fails
+				const markdown = turndown.turndown(rawHtml);
+				const result = truncate(markdown, maxChars);
+				content = result.value;
+				contentTruncated = result.truncated;
+			}
+		} else if (outputFormat === "text") {
+			const rawText = await page.evaluate(
+				`(() => document.body?.innerText || '')()`,
+			);
+			const result = truncate(rawText, maxChars);
+			content = result.value;
+			contentTruncated = result.truncated;
+		} else {
+			// html
+			const result = truncate(rawHtml, maxChars);
+			content = result.value;
+			contentTruncated = result.truncated;
+		}
+
 		const html = includeHtml ? truncate(rawHtml, maxChars).value : undefined;
 
 		return {
 			url,
 			finalUrl: page.url(),
 			title: title || null,
-			text,
+			content,
 			html,
 			meta: metadata,
 			fetchedAt: new Date().toISOString(),
-			truncated: textTruncated || (includeHtml && rawHtml.length > maxChars),
+			truncated: contentTruncated || (includeHtml && rawHtml.length > maxChars),
 		};
 	} finally {
 		await page.close();

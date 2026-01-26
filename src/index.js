@@ -16,10 +16,14 @@ server.registerTool(
 	{
 		title: "Fetch Web Page",
 		description:
-			"Fetch a web page and extract its text content, title, and metadata. " +
-			"Uses a real browser (Playwright) so it works with JavaScript-heavy sites.",
+			"Fetch a web page and extract its content as markdown (with links), plain text, or HTML. " +
+			"Uses Readability to extract the main content and a real browser (Playwright) for JavaScript-heavy sites.",
 		inputSchema: {
 			url: z.string().url().describe("The URL to fetch"),
+			outputFormat: z
+				.enum(["markdown", "text", "html"])
+				.optional()
+				.describe("Output format (default: markdown)"),
 			waitMs: z
 				.number()
 				.int()

@@ -63,15 +63,26 @@ Replace `/path/to/mcp-research-friend` with the actual path to this folder on yo
 
 ### friendly_fetch
 
-Fetches a web page and extracts its content.
+Fetches a web page and extracts its content. By default, returns markdown with links preserved — ideal for LLMs. Uses [Readability](https://github.com/mozilla/readability) to extract the main content (stripping navigation, ads, etc.).
 
 **Parameters:**
 - `url` (required) - The web address to fetch
+- `outputFormat` - Output format: `markdown` (default), `text`, or `html`
 - `waitMs` - Extra time to wait after the page loads, in case content appears slowly
 - `timeoutMs` - How long to wait before giving up (default: 15 seconds)
-- `maxChars` - Maximum amount of text to return (default: 40,000 characters)
-- `includeHtml` - Set to `true` if you also want the raw HTML
+- `maxChars` - Maximum amount of content to return (default: 40,000 characters)
+- `includeHtml` - Set to `true` to also return the raw HTML alongside the content
 - `headless` - Set to `false` to see the browser window (useful for debugging)
+
+**Returns:**
+- `url` - The URL that was requested
+- `finalUrl` - The URL after any redirects
+- `title` - The page title
+- `content` - The extracted content (in the requested format)
+- `html` - Raw HTML (only if `includeHtml` is true)
+- `meta` - Page metadata (description, author, published time, etc.)
+- `fetchedAt` - ISO timestamp of when the page was fetched
+- `truncated` - Whether the content was truncated to fit `maxChars`
 
 ### friendly_search
 
