@@ -68,7 +68,7 @@ server.registerTool(
     inputSchema: {
       query: z.string().min(1).describe('The search query'),
       engine: z
-        .enum(['duckduckgo', 'google', 'bing'])
+        .enum(['duckduckgo', 'google'])
         .optional()
         .describe('Search engine to use (default: duckduckgo)'),
       maxResults: z

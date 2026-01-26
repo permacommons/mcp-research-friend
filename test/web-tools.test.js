@@ -12,15 +12,19 @@ const mockPage = {
   waitForSelector: mock.fn(async () => {}),
   waitForFunction: mock.fn(async () => {}),
   close: mock.fn(async () => {}),
+  $: mock.fn(async () => null), // Mock finding element (for captcha check)
+  innerText: mock.fn(async () => 'Mock Body Text'),
 };
 
 const mockBrowser = {
   newPage: mock.fn(async () => mockPage),
   close: mock.fn(async () => {}),
+  pages: mock.fn(() => []), // Mock pages() for context cleanup
 };
 
 const mockChromium = {
   launch: mock.fn(async () => mockBrowser),
+  launchPersistentContext: mock.fn(async () => mockBrowser),
 };
 
 // Mock the module before importing dependencies
@@ -76,18 +80,12 @@ describe('Research Friend Tools', () => {
     assert.strictEqual(result.engine, 'duckduckgo');
     assert.strictEqual(result.results.length, 2);
     assert.strictEqual(result.results[0].title, 'Result 1');
-    assert.strictEqual(mockChromium.launch.mock.callCount(), 2); // Called again
+    assert.strictEqual(mockChromium.launchPersistentContext.mock.callCount(), 1); 
   });
 
   it('searchWeb should support google engine', async () => {
     const result = await searchWeb({ query: 'test query', engine: 'google' });
     assert.strictEqual(result.engine, 'google');
-    assert.strictEqual(mockChromium.launch.mock.callCount(), 3);
-  });
-
-  it('searchWeb should support bing engine', async () => {
-    const result = await searchWeb({ query: 'test query', engine: 'bing' });
-    assert.strictEqual(result.engine, 'bing');
-    assert.strictEqual(mockChromium.launch.mock.callCount(), 4);
+    assert.strictEqual(mockChromium.launchPersistentContext.mock.callCount(), 2);
   });
 });
