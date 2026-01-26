@@ -1,42 +1,45 @@
-import { chromium } from 'playwright';
+import { chromium } from "playwright";
 
 const truncate = (value, maxChars) => {
-  if (value.length <= maxChars) {
-    return { value, truncated: false };
-  }
-  return { value: value.slice(0, maxChars), truncated: true };
+	if (value.length <= maxChars) {
+		return { value, truncated: false };
+	}
+	return { value: value.slice(0, maxChars), truncated: true };
 };
 
 export async function fetchWebPage({
-  url,
-  waitMs = 0,
-  timeoutMs = 15000,
-  maxChars = 40000,
-  includeHtml = false,
-  headless = true,
-  slowMoMs,
-  holdOpenMs = 0,
+	url,
+	waitMs = 0,
+	timeoutMs = 15000,
+	maxChars = 40000,
+	includeHtml = false,
+	headless = true,
+	slowMoMs,
+	holdOpenMs = 0,
 }) {
-  const browser = await chromium.launch({
-    headless,
-    slowMo: slowMoMs,
-  });
-  const page = await browser.newPage();
+	const browser = await chromium.launch({
+		headless,
+		slowMo: slowMoMs,
+	});
+	const page = await browser.newPage();
 
-  try {
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    if (!response) {
-      throw new Error(`No response received for ${url}`);
-    }
+	try {
+		const response = await page.goto(url, {
+			waitUntil: "domcontentloaded",
+			timeout: timeoutMs,
+		});
+		if (!response) {
+			throw new Error(`No response received for ${url}`);
+		}
 
-    if (waitMs > 0) {
-      await page.waitForTimeout(waitMs);
-    }
-    if (holdOpenMs > 0) {
-      await page.waitForTimeout(holdOpenMs);
-    }
+		if (waitMs > 0) {
+			await page.waitForTimeout(waitMs);
+		}
+		if (holdOpenMs > 0) {
+			await page.waitForTimeout(holdOpenMs);
+		}
 
-    const metadata = await page.evaluate(`
+		const metadata = await page.evaluate(`
       (() => {
         const meta = {};
         const get = (selector) => {
@@ -58,25 +61,30 @@ export async function fetchWebPage({
       })()
     `);
 
-    const title = await page.title();
-    const rawText = await page.evaluate(`(() => document.body?.innerText || '')()`);
-    const rawHtml = includeHtml ? await page.content() : '';
+		const title = await page.title();
+		const rawText = await page.evaluate(
+			`(() => document.body?.innerText || '')()`,
+		);
+		const rawHtml = includeHtml ? await page.content() : "";
 
-    const { value: text, truncated: textTruncated } = truncate(rawText, maxChars);
-    const html = includeHtml ? truncate(rawHtml, maxChars).value : undefined;
+		const { value: text, truncated: textTruncated } = truncate(
+			rawText,
+			maxChars,
+		);
+		const html = includeHtml ? truncate(rawHtml, maxChars).value : undefined;
 
-    return {
-      url,
-      finalUrl: page.url(),
-      title: title || null,
-      text,
-      html,
-      meta: metadata,
-      fetchedAt: new Date().toISOString(),
-      truncated: textTruncated || (includeHtml && rawHtml.length > maxChars),
-    };
-  } finally {
-    await page.close();
-    await browser.close();
-  }
+		return {
+			url,
+			finalUrl: page.url(),
+			title: title || null,
+			text,
+			html,
+			meta: metadata,
+			fetchedAt: new Date().toISOString(),
+			truncated: textTruncated || (includeHtml && rawHtml.length > maxChars),
+		};
+	} finally {
+		await page.close();
+		await browser.close();
+	}
 }
