@@ -1,5 +1,60 @@
 import { PDFParse } from "pdf-parse";
 
+// Cache for extracted PDF text (25 MB limit, evict oldest first)
+const MAX_CACHE_BYTES = 25 * 1024 * 1024;
+const cache = new Map(); // url -> { text, info, size, fetchedAt }
+
+function getCacheSize() {
+	let total = 0;
+	for (const entry of cache.values()) {
+		total += entry.size;
+	}
+	return total;
+}
+
+function evictOldest() {
+	// Map preserves insertion order, so first key is oldest
+	const oldestKey = cache.keys().next().value;
+	if (oldestKey) {
+		cache.delete(oldestKey);
+	}
+}
+
+function addToCache(url, text, info) {
+	const size = text.length * 2; // approximate bytes (JS strings are UTF-16)
+
+	// Evict until we have room
+	while (cache.size > 0 && getCacheSize() + size > MAX_CACHE_BYTES) {
+		evictOldest();
+	}
+
+	// Don't cache if single entry exceeds limit
+	if (size > MAX_CACHE_BYTES) {
+		return;
+	}
+
+	cache.set(url, { text, info, size, fetchedAt: new Date().toISOString() });
+}
+
+function getFromCache(url) {
+	const entry = cache.get(url);
+	if (entry) {
+		// Move to end (most recently used)
+		cache.delete(url);
+		cache.set(url, entry);
+	}
+	return entry;
+}
+
+// Exported for testing
+export function clearCache() {
+	cache.clear();
+}
+
+export function getCacheStats() {
+	return { size: cache.size, bytes: getCacheSize() };
+}
+
 const truncate = (value, maxChars) => {
 	if (value.length <= maxChars) {
 		return { value, truncated: false };
@@ -35,49 +90,58 @@ export async function fetchPdf({
 	search = null,
 	contextChars = 200,
 }) {
-	const parser = new PDFParse({ url });
+	// Check cache first
+	const cached = getFromCache(url);
+	let fullText, info;
 
-	try {
-		const [textResult, infoResult] = await Promise.all([
-			parser.getText(),
-			parser.getInfo(),
-		]);
-
-		const fullText = textResult.text;
-
-		// If search is provided, return matches instead of full content
-		if (search) {
-			const matches = searchText(fullText, search, contextChars);
-			return {
-				url,
-				title: infoResult.info?.Title || null,
-				author: infoResult.info?.Author || null,
-				pageCount: textResult.total,
-				totalChars: fullText.length,
-				search,
-				matchCount: matches.length,
-				matches,
-				fetchedAt: new Date().toISOString(),
-			};
+	if (cached) {
+		fullText = cached.text;
+		info = cached.info;
+	} else {
+		const parser = new PDFParse({ url });
+		try {
+			const [textResult, infoResult] = await Promise.all([
+				parser.getText(),
+				parser.getInfo(),
+			]);
+			fullText = textResult.text;
+			info = { ...infoResult.info, pageCount: textResult.total };
+			addToCache(url, fullText, info);
+		} finally {
+			await parser.destroy();
 		}
+	}
 
-		// Otherwise return paginated content
-		const sliced = fullText.slice(offset);
-		const { value: content, truncated } = truncate(sliced, maxChars);
-
+	// If search is provided, return matches instead of full content
+	if (search) {
+		const matches = searchText(fullText, search, contextChars);
 		return {
 			url,
-			title: infoResult.info?.Title || null,
-			author: infoResult.info?.Author || null,
-			creationDate: infoResult.info?.CreationDate || null,
-			pageCount: textResult.total,
+			title: info?.Title || null,
+			author: info?.Author || null,
+			pageCount: info?.pageCount,
 			totalChars: fullText.length,
-			offset,
-			content,
+			search,
+			matchCount: matches.length,
+			matches,
 			fetchedAt: new Date().toISOString(),
-			truncated,
 		};
-	} finally {
-		await parser.destroy();
 	}
+
+	// Otherwise return paginated content
+	const sliced = fullText.slice(offset);
+	const { value: content, truncated } = truncate(sliced, maxChars);
+
+	return {
+		url,
+		title: info?.Title || null,
+		author: info?.Author || null,
+		creationDate: info?.CreationDate || null,
+		pageCount: info?.pageCount,
+		totalChars: fullText.length,
+		offset,
+		content,
+		fetchedAt: new Date().toISOString(),
+		truncated,
+	};
 }

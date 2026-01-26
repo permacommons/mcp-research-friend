@@ -51,12 +51,15 @@ describe("Research Friend Tools", () => {
 			return null;
 		});
 
-		const result = await fetchWebPage({ url: "http://example.com" });
+		const result = await fetchWebPage({
+			url: "http://example.com",
+			outputFormat: "text",
+		});
 
 		assert.strictEqual(result.url, "http://example.com");
 		assert.strictEqual(result.finalUrl, "http://example.com/final");
 		assert.strictEqual(result.title, "Mock Title");
-		assert.strictEqual(result.text, "Mock Body Text");
+		assert.strictEqual(result.content, "Mock Body Text");
 		assert.strictEqual(result.meta.description, "Mock Description");
 		assert.strictEqual(mockChromium.launch.mock.callCount(), 1);
 	});
