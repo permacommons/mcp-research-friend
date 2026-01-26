@@ -6,8 +6,9 @@ Research Friend is an MCP server that gives your AI tools the ability to fetch w
 
 ## What can it do?
 
-- **Fetch web pages** - Give it a URL and it'll grab the page content, title, and metadata
-- **Search the web** - Ask it to search DuckDuckGo and get back a list of results
+- **Fetch web pages** - Give it a URL and it'll grab the page content as markdown, with links preserved
+- **Fetch PDFs** - Download a PDF and extract its text content
+- **Search the web** - Search DuckDuckGo or Google and get back a list of results
 
 ## Getting started
 
@@ -105,6 +106,35 @@ Searches the web and returns a list of results.
 
 **CAPTCHA handling:**
 If a CAPTCHA is detected while running in headless mode, the tool automatically retries with a visible browser window. This gives you a chance to solve the CAPTCHA manually. The `debug_info.retried` field indicates whether this fallback was used.
+
+### friendly_pdf
+
+Fetches a PDF from a URL and extracts its text content.
+
+**Parameters:**
+- `url` (required) - The URL of the PDF to fetch
+- `maxChars` - Maximum amount of text to return (default: 40,000 characters)
+- `offset` - Character position to start from (default: 0). Use this to paginate through large PDFs.
+- `search` - Search for a phrase and return matches with surrounding context instead of full content
+- `contextChars` - Characters of context around each search match (default: 200)
+
+**Returns (normal mode):**
+- `url` - The URL that was requested
+- `title` - The PDF title (from metadata, if available)
+- `author` - The PDF author (from metadata, if available)
+- `creationDate` - When the PDF was created (from metadata, if available)
+- `pageCount` - Number of pages in the PDF
+- `totalChars` - Total characters in the PDF (use with `offset` to paginate)
+- `offset` - The offset that was used
+- `content` - The extracted text content
+- `fetchedAt` - ISO timestamp of when the PDF was fetched
+- `truncated` - Whether more content remains after this chunk
+
+**Returns (search mode):**
+- `url`, `title`, `author`, `pageCount`, `totalChars`, `fetchedAt` - Same as above
+- `search` - The search phrase that was used
+- `matchCount` - Number of matches found
+- `matches` - Array of matches, each with `position`, `context`, `prefix`, and `suffix`
 
 ## Troubleshooting
 

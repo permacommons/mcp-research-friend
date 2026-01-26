@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { fetchWebPage } from "./web-fetch.js";
 import { searchWeb } from "./web-search.js";
+import { fetchPdf } from "./pdf-fetch.js";
 
 const server = new McpServer({
 	name: "research-friend",
@@ -115,6 +116,60 @@ server.registerTool(
 			const message = error instanceof Error ? error.message : String(error);
 			return {
 				content: [{ type: "text", text: `Error searching: ${message}` }],
+				isError: true,
+			};
+		}
+	},
+);
+
+// friendly_pdf - Fetch and extract text from a PDF
+server.registerTool(
+	"friendly_pdf",
+	{
+		title: "Fetch PDF",
+		description:
+			"Fetch a PDF from a URL and extract its text content. " +
+			"Returns the text along with metadata like title, author, and page count.",
+		inputSchema: {
+			url: z.string().url().describe("The URL of the PDF to fetch"),
+			maxChars: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe("Maximum characters to return (default: 40000)"),
+			offset: z
+				.number()
+				.int()
+				.nonnegative()
+				.optional()
+				.describe("Character offset to start from (default: 0)"),
+			search: z
+				.string()
+				.optional()
+				.describe(
+					"Search for a phrase and return matches with context instead of full content",
+				),
+			contextChars: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe(
+					"Characters of context around each search match (default: 200)",
+				),
+		},
+	},
+	async (args) => {
+		try {
+			const result = await fetchPdf(args);
+			return {
+				content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+			};
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				content: [{ type: "text", text: `Error fetching PDF: ${message}` }],
 				isError: true,
 			};
 		}
