@@ -107,7 +107,7 @@ Searches the web and returns a list of results.
 **CAPTCHA handling:**
 If a CAPTCHA is detected while running in headless mode, the tool automatically retries with a visible browser window. This gives you a chance to solve the CAPTCHA manually. The `debug_info.retried` field indicates whether this fallback was used.
 
-### friendly_pdf
+### friendly_pdf_extract
 
 Fetches a PDF from a URL and extracts its text content.
 

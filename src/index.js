@@ -122,9 +122,9 @@ server.registerTool(
 	},
 );
 
-// friendly_pdf - Fetch and extract text from a PDF
+// friendly_pdf_extract - Fetch and extract text from a PDF
 server.registerTool(
-	"friendly_pdf",
+	"friendly_pdf_extract",
 	{
 		title: "Fetch PDF",
 		description:
