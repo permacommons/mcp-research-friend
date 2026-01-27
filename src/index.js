@@ -129,7 +129,8 @@ server.registerTool(
 		title: "Fetch PDF",
 		description:
 			"Fetch a PDF from a URL and extract its text content. " +
-			"Returns the text along with metadata like title, author, and page count.",
+			"Returns the text along with metadata like title, author, and page count. " +
+			"Use 'ask' to have an LLM answer questions about the PDF without loading it into your context.",
 		inputSchema: {
 			url: z.string().url().describe("The URL of the PDF to fetch"),
 			maxChars: z
@@ -150,6 +151,12 @@ server.registerTool(
 				.describe(
 					"Search for a phrase and return matches with context instead of full content",
 				),
+			ask: z
+				.string()
+				.optional()
+				.describe(
+					"Have an LLM process the PDF with this instruction (e.g., summarize, extract key points, answer a question). Keeps PDF out of main context.",
+				),
 			contextChars: z
 				.number()
 				.int()
@@ -162,7 +169,7 @@ server.registerTool(
 	},
 	async (args) => {
 		try {
-			const result = await fetchPdf(args);
+			const result = await fetchPdf({ ...args, _server: server });
 			return {
 				content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
 			};

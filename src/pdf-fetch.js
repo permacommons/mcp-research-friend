@@ -88,9 +88,11 @@ export async function fetchPdf({
 	maxChars = 40000,
 	offset = 0,
 	search = null,
+	ask = null,
 	contextChars = 200,
 	// Dependency injection for testing
 	_PDFParse = PDFParse,
+	_server = null,
 }) {
 	// Check cache first
 	const cached = getFromCache(url);
@@ -112,6 +114,54 @@ export async function fetchPdf({
 		} finally {
 			await parser.destroy();
 		}
+	}
+
+	// If ask is provided, use sampling to answer the question
+	if (ask) {
+		if (!_server) {
+			throw new Error("Server instance required for 'ask' mode");
+		}
+
+		const result = await _server.createMessage({
+			messages: [
+				{
+					role: "user",
+					content: {
+						type: "text",
+						text: `Here is a PDF document:\n\n---\n\n${fullText}\n\n---\n\nInstruction: ${ask}`,
+					},
+				},
+			],
+			systemPrompt:
+				"You are a helpful assistant processing a PDF document. Follow the user's instruction precisely. Be concise and accurate. Base your response only on the document content.",
+			maxTokens: 4096,
+		});
+
+		// Extract text from response
+		const responseContent = result.content;
+		const answer =
+			typeof responseContent === "string"
+				? responseContent
+				: Array.isArray(responseContent)
+					? responseContent
+							.filter((block) => block.type === "text")
+							.map((block) => block.text)
+							.join("\n")
+					: responseContent.type === "text"
+						? responseContent.text
+						: JSON.stringify(responseContent);
+
+		return {
+			url,
+			title: info?.Title || null,
+			author: info?.Author || null,
+			pageCount: info?.pageCount,
+			totalChars: fullText.length,
+			ask,
+			answer,
+			model: result.model,
+			fetchedAt: new Date().toISOString(),
+		};
 	}
 
 	// If search is provided, return matches instead of full content

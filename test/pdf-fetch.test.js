@@ -161,4 +161,46 @@ describe("PDF Fetch", () => {
 		});
 		assert.strictEqual(MockPDFParse.getCallCount(), 2);
 	});
+
+	it("should process instructions using ask mode", async () => {
+		const mockServer = {
+			createMessage: async ({ messages, systemPrompt, maxTokens }) => {
+				// Verify the request structure
+				assert.ok(messages[0].content.text.includes("blockchain"));
+				assert.ok(messages[0].content.text.includes("Summarize"));
+				assert.ok(systemPrompt.includes("helpful assistant"));
+				assert.strictEqual(maxTokens, 4096);
+
+				return {
+					content: { type: "text", text: "This document covers blockchain technology and machine learning." },
+					model: "test-model",
+				};
+			},
+		};
+
+		const result = await fetchPdf({
+			url: "http://example.com/ask.pdf",
+			ask: "Summarize this document in one sentence.",
+			_PDFParse: MockPDFParse,
+			_server: mockServer,
+		});
+
+		assert.strictEqual(result.ask, "Summarize this document in one sentence.");
+		assert.strictEqual(result.answer, "This document covers blockchain technology and machine learning.");
+		assert.strictEqual(result.model, "test-model");
+		assert.ok(result.totalChars > 0);
+	});
+
+	it("should throw error if ask mode used without server", async () => {
+		await assert.rejects(
+			async () => {
+				await fetchPdf({
+					url: "http://example.com/ask.pdf",
+					ask: "What is this about?",
+					_PDFParse: MockPDFParse,
+				});
+			},
+			{ message: "Server instance required for 'ask' mode" },
+		);
+	});
 });
