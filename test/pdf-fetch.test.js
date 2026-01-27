@@ -1,6 +1,6 @@
 import assert from "node:assert";
-import { describe, it, beforeEach } from "node:test";
-import { fetchPdf, clearCache, getCacheStats } from "../src/pdf-fetch.js";
+import { beforeEach, describe, it } from "node:test";
+import { clearCache, fetchPdf, getCacheStats } from "../src/pdf-fetch.js";
 
 // Mock PDFParse class
 function createMockPDFParse() {
@@ -166,16 +166,19 @@ describe("PDF Fetch", () => {
 		const mockServer = {
 			server: {
 				createMessage: async ({ messages, systemPrompt, maxTokens }) => {
-				// Verify the request structure
-				assert.ok(messages[0].content.text.includes("blockchain"));
-				assert.ok(messages[0].content.text.includes("Summarize"));
-				assert.ok(systemPrompt.includes("helpful assistant"));
-				assert.strictEqual(maxTokens, 4096);
+					// Verify the request structure
+					assert.ok(messages[0].content.text.includes("blockchain"));
+					assert.ok(messages[0].content.text.includes("Summarize"));
+					assert.ok(systemPrompt.includes("helpful assistant"));
+					assert.strictEqual(maxTokens, 4096);
 
-				return {
-					content: { type: "text", text: "This document covers blockchain technology and machine learning." },
-					model: "test-model",
-				};
+					return {
+						content: {
+							type: "text",
+							text: "This document covers blockchain technology and machine learning.",
+						},
+						model: "test-model",
+					};
 				},
 			},
 		};
@@ -188,7 +191,10 @@ describe("PDF Fetch", () => {
 		});
 
 		assert.strictEqual(result.ask, "Summarize this document in one sentence.");
-		assert.strictEqual(result.answer, "This document covers blockchain technology and machine learning.");
+		assert.strictEqual(
+			result.answer,
+			"This document covers blockchain technology and machine learning.",
+		);
 		assert.strictEqual(result.model, "test-model");
 		assert.ok(result.totalChars > 0);
 	});
@@ -197,7 +203,7 @@ describe("PDF Fetch", () => {
 		let capturedOptions;
 		const mockServer = {
 			server: {
-				createMessage: async (params, options) => {
+				createMessage: async (_params, options) => {
 					capturedOptions = options;
 					return {
 						content: { type: "text", text: "Response" },

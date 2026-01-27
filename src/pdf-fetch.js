@@ -66,9 +66,9 @@ function searchText(text, query, contextChars = 200) {
 	const matches = [];
 	const lowerText = text.toLowerCase();
 	const lowerQuery = query.toLowerCase();
-	let pos = 0;
+	let pos = lowerText.indexOf(lowerQuery, 0);
 
-	while ((pos = lowerText.indexOf(lowerQuery, pos)) !== -1) {
+	while (pos !== -1) {
 		const start = Math.max(0, pos - contextChars);
 		const end = Math.min(text.length, pos + query.length + contextChars);
 		matches.push({
@@ -77,7 +77,7 @@ function searchText(text, query, contextChars = 200) {
 			prefix: start > 0 ? "..." : "",
 			suffix: end < text.length ? "..." : "",
 		});
-		pos += query.length;
+		pos = lowerText.indexOf(lowerQuery, pos + query.length);
 	}
 
 	return matches;

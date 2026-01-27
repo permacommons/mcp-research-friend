@@ -1,7 +1,7 @@
-import { chromium } from "playwright";
 import { Readability } from "@mozilla/readability";
-import TurndownService from "turndown";
 import { JSDOM } from "jsdom";
+import { chromium } from "playwright";
+import TurndownService from "turndown";
 
 const turndown = new TurndownService({
 	headingStyle: "atx",

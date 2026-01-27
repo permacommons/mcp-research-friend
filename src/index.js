@@ -1,10 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-
+import { fetchPdf } from "./pdf-fetch.js";
 import { fetchWebPage } from "./web-fetch.js";
 import { searchWeb } from "./web-search.js";
-import { fetchPdf } from "./pdf-fetch.js";
 
 const server = new McpServer({
 	name: "research-friend",
