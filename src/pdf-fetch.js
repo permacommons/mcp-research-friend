@@ -137,6 +137,9 @@ export async function fetchPdf({
 				systemPrompt:
 					"You are a helpful assistant processing a PDF document. Follow the user's instruction precisely. Be concise and accurate. Base your response only on the document content.",
 				maxTokens: 4096,
+				_meta: {
+					"research-friend/timeoutMs": askTimeout,
+				},
 			},
 			{ timeout: askTimeout },
 		);
