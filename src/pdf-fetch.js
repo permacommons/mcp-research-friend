@@ -122,7 +122,7 @@ export async function fetchPdf({
 			throw new Error("Server instance required for 'ask' mode");
 		}
 
-		const result = await _server.createMessage({
+		const result = await _server.server.createMessage({
 			messages: [
 				{
 					role: "user",

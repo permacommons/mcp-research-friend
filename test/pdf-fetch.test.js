@@ -164,7 +164,8 @@ describe("PDF Fetch", () => {
 
 	it("should process instructions using ask mode", async () => {
 		const mockServer = {
-			createMessage: async ({ messages, systemPrompt, maxTokens }) => {
+			server: {
+				createMessage: async ({ messages, systemPrompt, maxTokens }) => {
 				// Verify the request structure
 				assert.ok(messages[0].content.text.includes("blockchain"));
 				assert.ok(messages[0].content.text.includes("Summarize"));
@@ -175,6 +176,7 @@ describe("PDF Fetch", () => {
 					content: { type: "text", text: "This document covers blockchain technology and machine learning." },
 					model: "test-model",
 				};
+				},
 			},
 		};
 
