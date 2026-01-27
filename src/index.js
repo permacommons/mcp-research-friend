@@ -157,6 +157,14 @@ server.registerTool(
 				.describe(
 					"Have an LLM process the PDF with this instruction (e.g., summarize, extract key points, answer a question). Keeps PDF out of main context.",
 				),
+			askTimeout: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe(
+					"Timeout in milliseconds for 'ask' mode LLM processing (default: 300000 = 5 minutes)",
+				),
 			contextChars: z
 				.number()
 				.int()

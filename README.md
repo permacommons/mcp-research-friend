@@ -117,6 +117,7 @@ Fetches a PDF from a URL and extracts its text content.
 - `offset` - Character position to start from (default: 0). Use this to paginate through large PDFs.
 - `search` - Search for a phrase and return matches with surrounding context instead of full content
 - `ask` - Have an LLM process the PDF with an instruction (see below)
+- `askTimeout` - Timeout in milliseconds for `ask` mode (default: 300,000 = 5 minutes)
 - `contextChars` - Characters of context around each search match (default: 200)
 
 **Returns (normal mode):**

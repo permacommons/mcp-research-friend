@@ -89,6 +89,7 @@ export async function fetchPdf({
 	offset = 0,
 	search = null,
 	ask = null,
+	askTimeout = 300000, // 5 minutes default for LLM processing
 	contextChars = 200,
 	// Dependency injection for testing
 	_PDFParse = PDFParse,
@@ -122,20 +123,23 @@ export async function fetchPdf({
 			throw new Error("Server instance required for 'ask' mode");
 		}
 
-		const result = await _server.server.createMessage({
-			messages: [
-				{
-					role: "user",
-					content: {
-						type: "text",
-						text: `Here is a PDF document:\n\n---\n\n${fullText}\n\n---\n\nInstruction: ${ask}`,
+		const result = await _server.server.createMessage(
+			{
+				messages: [
+					{
+						role: "user",
+						content: {
+							type: "text",
+							text: `Here is a PDF document:\n\n---\n\n${fullText}\n\n---\n\nInstruction: ${ask}`,
+						},
 					},
-				},
-			],
-			systemPrompt:
-				"You are a helpful assistant processing a PDF document. Follow the user's instruction precisely. Be concise and accurate. Base your response only on the document content.",
-			maxTokens: 4096,
-		});
+				],
+				systemPrompt:
+					"You are a helpful assistant processing a PDF document. Follow the user's instruction precisely. Be concise and accurate. Base your response only on the document content.",
+				maxTokens: 4096,
+			},
+			{ timeout: askTimeout },
+		);
 
 		// Extract text from response
 		const responseContent = result.content;

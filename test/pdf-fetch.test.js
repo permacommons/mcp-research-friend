@@ -193,6 +193,40 @@ describe("PDF Fetch", () => {
 		assert.ok(result.totalChars > 0);
 	});
 
+	it("should pass timeout to createMessage in ask mode", async () => {
+		let capturedOptions;
+		const mockServer = {
+			server: {
+				createMessage: async (params, options) => {
+					capturedOptions = options;
+					return {
+						content: { type: "text", text: "Response" },
+						model: "test-model",
+					};
+				},
+			},
+		};
+
+		// Test default timeout
+		await fetchPdf({
+			url: "http://example.com/timeout1.pdf",
+			ask: "Summarize",
+			_PDFParse: MockPDFParse,
+			_server: mockServer,
+		});
+		assert.strictEqual(capturedOptions.timeout, 300000); // 5 minutes default
+
+		// Test custom timeout
+		await fetchPdf({
+			url: "http://example.com/timeout2.pdf",
+			ask: "Summarize",
+			askTimeout: 60000,
+			_PDFParse: MockPDFParse,
+			_server: mockServer,
+		});
+		assert.strictEqual(capturedOptions.timeout, 60000);
+	});
+
 	it("should throw error if ask mode used without server", async () => {
 		await assert.rejects(
 			async () => {
