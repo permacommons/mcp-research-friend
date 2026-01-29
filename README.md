@@ -4,6 +4,11 @@ A friendly helper for AI assistants that need to look things up on the web and m
 
 Research Friend is an MCP server that gives your AI tools the ability to fetch web pages and search the internet. It uses a real web browser behind the scenes, so it works even with modern websites that rely heavily on JavaScript. It also includes a local “stash” for storing documents, extracting text, and searching across your library.
 
+To make use of all its features, you'll want an MCP client that supports
+prompts (common) and sampling (less common). We're building Research Friend
+alongside [Chabeau](https://github.com/permacommons/chabeau), which supports
+both.
+
 ## What can it do?
 
 - **Fetch web pages** with a real browser (including JS-heavy sites)
