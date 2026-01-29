@@ -1,14 +1,15 @@
 # Research Friend
 
-A friendly helper for AI assistants that need to look things up on the web.
+A friendly helper for AI assistants that need to look things up on the web and manage a local research stash.
 
-Research Friend is an MCP server that gives your AI tools the ability to fetch web pages and search the internet. It uses a real web browser behind the scenes, so it works even with modern websites that rely heavily on JavaScript.
+Research Friend is an MCP server that gives your AI tools the ability to fetch web pages and search the internet. It uses a real web browser behind the scenes, so it works even with modern websites that rely heavily on JavaScript. It also includes a local “stash” for storing documents, extracting text, and searching across your library.
 
 ## What can it do?
 
-- **Fetch web pages** - Give it a URL and it'll grab the page content as markdown, with links preserved
-- **Fetch PDFs** - Download a PDF and extract its text content
-- **Search the web** - Search DuckDuckGo or Google and get back a list of results
+- **Fetch web pages** with a real browser (including JS-heavy sites)
+- **Fetch PDFs** and extract their text content
+- **Search the web** via DuckDuckGo or Google
+- **Maintain a local stash** of documents for search, listing, and extraction
 
 ## Getting started
 
@@ -32,9 +33,7 @@ npx playwright install chromium
 
 This downloads a copy of Chromium that Playwright will use. It's separate from any browsers you already have installed.
 
-### 3. Try it out
-
-You can start the server with:
+### 3. Start the server
 
 ```
 node src/index.js
@@ -60,9 +59,11 @@ How you add Research Friend depends on which MCP client you're using. Here's a g
 
 Replace `/path/to/mcp-research-friend` with the actual path to this folder on your computer.
 
-## Available tools
+## Tools
 
-### friendly_fetch
+### Web tools
+
+#### friendly_fetch
 
 Fetches a web page and extracts its content. By default, returns markdown with links preserved — ideal for LLMs. Uses [Readability](https://github.com/mozilla/readability) to extract the main content (stripping navigation, ads, etc.).
 
@@ -85,7 +86,7 @@ Fetches a web page and extracts its content. By default, returns markdown with l
 - `fetchedAt` - ISO timestamp of when the page was fetched
 - `truncated` - Whether the content was truncated to fit `maxChars`
 
-### friendly_search
+#### friendly_search
 
 Searches the web and returns a list of results.
 
@@ -107,7 +108,7 @@ Searches the web and returns a list of results.
 **CAPTCHA handling:**
 If a CAPTCHA is detected while running in headless mode, the tool automatically retries with a visible browser window. This gives you a chance to solve the CAPTCHA manually. The `debug_info.retried` field indicates whether this fallback was used.
 
-### friendly_pdf_extract
+#### friendly_pdf_extract
 
 Fetches a PDF from a URL and extracts its text content.
 
@@ -148,6 +149,92 @@ Fetches a PDF from a URL and extracts its text content.
 - Large PDFs that would overwhelm context
 - Multiple operations on the same document (the PDF is cached)
 - Keeping token costs down on the main conversation
+
+## Document stash
+
+The stash is a local, searchable library of documents. It supports PDFs, HTML files, and plaintext (Markdown/TXT). When you add a document, Research Friend stores the original file, extracts text (for PDFs/HTML), and saves metadata in a local database. Searches use ripgrep under the hood for fast, phrase-aware matching.
+
+### Stash location
+
+The stash lives under `~/.research-friend/`:
+
+- `inbox/` - Drop files here to be processed
+- `store/` - Organized document storage and extracted text
+- `stash.db` - Metadata database
+
+### Supported file types
+
+- PDF: `.pdf` (text extracted)
+- HTML: `.html`, `.htm` (text extracted)
+- Markdown: `.md`, `.markdown` (stored as plaintext)
+- Text: `.txt` (stored as plaintext)
+
+### Stash tools
+
+#### stash_open_inbox
+
+Open the stash inbox folder in your file manager for easier drag-and-drop.
+
+**Returns:**
+- `opened` - Whether the folder open request was sent
+- `inboxPath` - Absolute path to the inbox
+- `command` - OS command used
+- `args` - Command arguments used
+
+#### stash_process_inbox
+
+Process files in `inbox/`, classify them into topics, extract text, and store results.
+
+**Returns:**
+- `processed` - Number of files processed
+- `skipped` - Number of files skipped
+- `errors` - Any errors encountered
+
+#### stash_list
+
+List documents in the stash.
+
+**Parameters:**
+- `topic` - Filter to a topic (optional)
+- `limit` - Max results (default: 50)
+- `offset` - Pagination offset (default: 0)
+
+**Returns:**
+- `type` - `all` or `topic`
+- `topics` - Summary of known topics and doc counts
+- `documents` - Document list with metadata
+
+#### stash_search
+
+Search filenames and content across the stash. Quoted phrases are supported.
+
+**Parameters:**
+- `query` (required) - Search terms (use quotes for phrases)
+- `topic` - Filter to a topic (optional)
+- `limit` - Max results (default: 20)
+- `offset` - Pagination offset (default: 0)
+- `contextLines` - Lines of context for matches (default: 2)
+
+**Returns:**
+- `totalMatches` - Total matches found before pagination
+- `count` - Results returned after pagination
+- `results` - Documents with `matchType`, `matchCount`, and `snippet`
+
+#### stash_extract
+
+Extract content from a stashed document for reading or question answering.
+
+**Parameters:**
+- `id` (required) - Document ID from `stash_list`/`stash_search`
+- `maxChars`, `offset`, `search`, `ask`, `askTimeout`, `contextChars` - Same behavior as `friendly_pdf_extract`
+
+### Typical flow
+
+1. Drop files into `~/.research-friend/inbox/`
+2. Run `stash_process_inbox`
+3. Use `stash_list` to browse topics
+4. Use `stash_search` to find relevant docs
+5. Use `stash_extract` to read or ask questions about a specific doc
 
 ## Troubleshooting
 
