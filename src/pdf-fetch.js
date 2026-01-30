@@ -1,4 +1,5 @@
 import { PDFParse } from "pdf-parse";
+import { processAsk } from "./ask-processor.js";
 
 // Cache for extracted PDF text (25 MB limit, evict oldest first)
 const MAX_CACHE_BYTES = 25 * 1024 * 1024;
@@ -90,6 +91,9 @@ export async function fetchPdf({
 	search = null,
 	ask = null,
 	askTimeout = 300000, // 5 minutes default for LLM processing
+	askMaxInputTokens = 150000,
+	askMaxOutputTokens = 4096,
+	askSplitAndSynthesize = false,
 	contextChars = 200,
 	// Dependency injection for testing
 	_PDFParse = PDFParse,
@@ -119,44 +123,16 @@ export async function fetchPdf({
 
 	// If ask is provided, use sampling to answer the question
 	if (ask) {
-		if (!_server) {
-			throw new Error("Server instance required for 'ask' mode");
-		}
-
-		const result = await _server.server.createMessage(
-			{
-				messages: [
-					{
-						role: "user",
-						content: {
-							type: "text",
-							text: `Here is a PDF document:\n\n---\n\n${fullText}\n\n---\n\nInstruction: ${ask}`,
-						},
-					},
-				],
-				systemPrompt:
-					"You are a helpful assistant processing a PDF document. Follow the user's instruction precisely. Be concise and accurate. Base your response only on the document content.",
-				maxTokens: 4096,
-				_meta: {
-					"research-friend/timeoutMs": askTimeout,
-				},
-			},
-			{ timeout: askTimeout },
-		);
-
-		// Extract text from response
-		const responseContent = result.content;
-		const answer =
-			typeof responseContent === "string"
-				? responseContent
-				: Array.isArray(responseContent)
-					? responseContent
-							.filter((block) => block.type === "text")
-							.map((block) => block.text)
-							.join("\n")
-					: responseContent.type === "text"
-						? responseContent.text
-						: JSON.stringify(responseContent);
+		const result = await processAsk({
+			fullText,
+			ask,
+			askMaxInputTokens,
+			askMaxOutputTokens,
+			askTimeout,
+			askSplitAndSynthesize,
+			documentType: "PDF document",
+			_server,
+		});
 
 		return {
 			url,
@@ -165,8 +141,9 @@ export async function fetchPdf({
 			pageCount: info?.pageCount,
 			totalChars: fullText.length,
 			ask,
-			answer,
+			answer: result.answer,
 			model: result.model,
+			chunksProcessed: result.chunksProcessed,
 			fetchedAt: new Date().toISOString(),
 		};
 	}

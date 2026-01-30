@@ -122,8 +122,11 @@ Fetches a PDF from a URL and extracts its text content.
 - `maxChars` - Maximum amount of text to return (default: 40,000 characters)
 - `offset` - Character position to start from (default: 0). Use this to paginate through large PDFs.
 - `search` - Search for a phrase and return matches with surrounding context instead of full content
-- `ask` - Have an LLM process the PDF with an instruction (see below)
+- `ask` - Have an LLM process the document with an instruction (see below)
+- `askMaxInputTokens` - Maximum input tokens per LLM call (default: 150,000)
+- `askMaxOutputTokens` - Maximum output tokens per LLM call (default: 4,096)
 - `askTimeout` - Timeout in milliseconds for `ask` mode (default: 300,000 = 5 minutes)
+- `askSplitAndSynthesize` - For large documents: split into chunks, process each, then synthesize results (default: false). Warning: consumes many tokens.
 - `contextChars` - Characters of context around each search match (default: 200)
 
 **Returns (normal mode):**
@@ -149,11 +152,14 @@ Fetches a PDF from a URL and extracts its text content.
 - `ask` - The instruction that was given
 - `answer` - The LLM's response
 - `model` - The model that generated the response
+- `chunksProcessed` - Number of chunks processed (1 for small documents, more when using `askSplitAndSynthesize`)
 
-**Ask mode** uses MCP sampling to have an LLM process the PDF with any instruction — summarize, extract information, answer questions, generate a FAQ, etc. The PDF content is sent to the LLM in a separate context, keeping your main conversation context compact. This is useful for:
-- Large PDFs that would overwhelm context
-- Multiple operations on the same document (the PDF is cached)
+**Ask mode** uses MCP sampling to have an LLM process the document with any instruction — summarize, extract information, answer questions, generate a FAQ, etc. The document content is sent to the LLM in a separate context, keeping your main conversation context compact. This is useful for:
+- Large documents that would overwhelm context
+- Multiple operations on the same document (the document is cached)
 - Keeping token costs down on the main conversation
+
+When `askSplitAndSynthesize` is enabled, documents exceeding `askMaxInputTokens` are automatically split into overlapping chunks. Each chunk is processed separately, and the results are synthesized into a single coherent answer. The final response is provided in the same language as your request, regardless of the document's language.
 
 ## Document stash
 
@@ -231,7 +237,8 @@ Extract content from a stashed document for reading or question answering.
 
 **Parameters:**
 - `id` (required) - Document ID from `stash_list`/`stash_search`
-- `maxChars`, `offset`, `search`, `ask`, `askTimeout`, `contextChars` - Same behavior as `friendly_pdf_extract`
+- `maxChars`, `offset`, `search`, `contextChars` - Same behavior as `friendly_pdf_extract`
+- `ask`, `askMaxInputTokens`, `askMaxOutputTokens`, `askTimeout`, `askSplitAndSynthesize` - Same behavior as `friendly_pdf_extract`
 
 ### Typical flow
 

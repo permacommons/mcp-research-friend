@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { processAsk } from "../ask-processor.js";
 import { PLAINTEXT_TYPES } from "./extractors.js";
 
 function searchText(text, query, contextChars = 200) {
@@ -37,6 +38,9 @@ export async function extractFromStash({
 	search = null,
 	ask = null,
 	askTimeout = 300000,
+	askMaxInputTokens = 150000,
+	askMaxOutputTokens = 4096,
+	askSplitAndSynthesize = false,
 	contextChars = 200,
 	_db,
 	_server = null,
@@ -57,44 +61,16 @@ export async function extractFromStash({
 
 	// If ask is provided, use sampling to answer the question
 	if (ask) {
-		if (!_server) {
-			throw new Error("Server instance required for 'ask' mode");
-		}
-
-		const result = await _server.server.createMessage(
-			{
-				messages: [
-					{
-						role: "user",
-						content: {
-							type: "text",
-							text: `Here is a document:\n\n---\n\n${fullText}\n\n---\n\nInstruction: ${ask}`,
-						},
-					},
-				],
-				systemPrompt:
-					"You are a helpful assistant processing a document. Follow the user's instruction precisely. Be concise and accurate. Base your response only on the document content.",
-				maxTokens: 4096,
-				_meta: {
-					"research-friend/timeoutMs": askTimeout,
-				},
-			},
-			{ timeout: askTimeout },
-		);
-
-		// Extract text from response
-		const responseContent = result.content;
-		const answer =
-			typeof responseContent === "string"
-				? responseContent
-				: Array.isArray(responseContent)
-					? responseContent
-							.filter((block) => block.type === "text")
-							.map((block) => block.text)
-							.join("\n")
-					: responseContent.type === "text"
-						? responseContent.text
-						: JSON.stringify(responseContent);
+		const result = await processAsk({
+			fullText,
+			ask,
+			askMaxInputTokens,
+			askMaxOutputTokens,
+			askTimeout,
+			askSplitAndSynthesize,
+			documentType: "document",
+			_server,
+		});
 
 		return {
 			id: doc.id,
@@ -103,8 +79,9 @@ export async function extractFromStash({
 			summary: doc.summary,
 			totalChars: fullText.length,
 			ask,
-			answer,
+			answer: result.answer,
 			model: result.model,
+			chunksProcessed: result.chunksProcessed,
 		};
 	}
 

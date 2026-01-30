@@ -189,7 +189,9 @@ server.registerTool(
 				.string()
 				.optional()
 				.describe(
-					"Have an LLM process the PDF with this instruction (e.g., summarize, extract key points, answer a question). Keeps PDF out of main context.",
+					"Have an LLM process the document with this request (e.g., summarize, extract key points, answer a question). " +
+						"Keeps document out of main context. Write the request as if addressing the entire document, " +
+						"even when using askSplitAndSynthesize - chunking is handled automatically.",
 				),
 			askTimeout: z
 				.number()
@@ -198,6 +200,32 @@ server.registerTool(
 				.optional()
 				.describe(
 					"Timeout in milliseconds for 'ask' mode LLM processing (default: 300000 = 5 minutes)",
+				),
+			askMaxInputTokens: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe(
+					"Maximum estimated input tokens for ask mode (document + prompt). " +
+						"Default 150000. Reduce for smaller context models.",
+				),
+			askMaxOutputTokens: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe(
+					"Maximum output tokens for ask mode (model response). Default 4096.",
+				),
+			askSplitAndSynthesize: z
+				.boolean()
+				.optional()
+				.describe(
+					"For large documents exceeding askMaxInputTokens: split into chunks, " +
+						"process each, then synthesize results. WARNING: This can consume " +
+						"many tokens (roughly 2x document size + synthesis). " +
+						"Max document size: 20 MB. Default: false.",
 				),
 			contextChars: z
 				.number()
@@ -371,7 +399,9 @@ server.registerTool(
 				.string()
 				.optional()
 				.describe(
-					"Have an LLM process the document with this instruction. Keeps document out of main context.",
+					"Have an LLM process the document with this request (e.g., summarize, extract info, answer a question). " +
+						"Keeps document out of main context. Write the request as if addressing the entire document, " +
+						"even when using askSplitAndSynthesize - chunking is handled automatically.",
 				),
 			askTimeout: z
 				.number()
@@ -380,6 +410,32 @@ server.registerTool(
 				.optional()
 				.describe(
 					"Timeout in milliseconds for 'ask' mode LLM processing (default: 300000 = 5 minutes)",
+				),
+			askMaxInputTokens: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe(
+					"Maximum estimated input tokens for ask mode (document + prompt). " +
+						"Default 150000. Reduce for smaller context models.",
+				),
+			askMaxOutputTokens: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe(
+					"Maximum output tokens for ask mode (model response). Default 4096.",
+				),
+			askSplitAndSynthesize: z
+				.boolean()
+				.optional()
+				.describe(
+					"For large documents exceeding askMaxInputTokens: split into chunks, " +
+						"process each, then synthesize results. WARNING: This can consume " +
+						"many tokens (roughly 2x document size + synthesis). " +
+						"Max document size: 20 MB. Default: false.",
 				),
 			contextChars: z
 				.number()

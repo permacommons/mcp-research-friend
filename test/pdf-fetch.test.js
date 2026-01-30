@@ -170,7 +170,7 @@ describe("PDF Fetch", () => {
 					assert.ok(messages[0].content.text.includes("blockchain"));
 					assert.ok(messages[0].content.text.includes("Summarize"));
 					assert.ok(systemPrompt.includes("helpful assistant"));
-					assert.strictEqual(maxTokens, 4096);
+					assert.strictEqual(maxTokens, 4096); // default askMaxOutputTokens
 
 					return {
 						content: {
@@ -197,6 +197,161 @@ describe("PDF Fetch", () => {
 		);
 		assert.strictEqual(result.model, "test-model");
 		assert.ok(result.totalChars > 0);
+	});
+
+	it("should respect askMaxOutputTokens parameter", async () => {
+		let capturedMaxTokens;
+		const mockServer = {
+			server: {
+				createMessage: async ({ maxTokens }) => {
+					capturedMaxTokens = maxTokens;
+					return {
+						content: { type: "text", text: "Response" },
+						model: "test-model",
+					};
+				},
+			},
+		};
+
+		await fetchPdf({
+			url: "http://example.com/tokens.pdf",
+			ask: "Summarize",
+			askMaxOutputTokens: 8192,
+			_PDFParse: MockPDFParse,
+			_server: mockServer,
+		});
+
+		assert.strictEqual(capturedMaxTokens, 8192);
+	});
+
+	it("should reject documents exceeding askMaxInputTokens with hint about splitAndSynthesize", async () => {
+		// Create a mock that returns a large document
+		function LargePDFParse() {}
+		LargePDFParse.prototype.getText = async () => ({
+			// 100,000 chars = ~25,000 tokens
+			text: "x".repeat(100000),
+			total: 100,
+		});
+		LargePDFParse.prototype.getInfo = async () => ({ info: {} });
+		LargePDFParse.prototype.destroy = async () => {};
+
+		const mockServer = {
+			server: {
+				createMessage: async () => {
+					throw new Error("Should not be called");
+				},
+			},
+		};
+
+		// With a very low limit, the document should be rejected
+		await assert.rejects(
+			async () => {
+				await fetchPdf({
+					url: "http://example.com/large.pdf",
+					ask: "Summarize",
+					askMaxInputTokens: 10000, // ~40k chars, but doc is 100k chars (~25k tokens)
+					_PDFParse: LargePDFParse,
+					_server: mockServer,
+				});
+			},
+			(err) => {
+				assert.ok(err.message.includes("too large for ask mode"));
+				assert.ok(err.message.includes("25,000 tokens"));
+				assert.ok(err.message.includes("10,000"));
+				assert.ok(err.message.includes("askSplitAndSynthesize"));
+				return true;
+			},
+		);
+	});
+
+	it("should split and synthesize large documents when askSplitAndSynthesize is true", async () => {
+		// Create a mock that returns a document requiring 2 chunks
+		function LargePDFParse() {}
+		LargePDFParse.prototype.getText = async () => ({
+			text: "A".repeat(50000) + "B".repeat(50000), // 100k chars
+			total: 50,
+		});
+		LargePDFParse.prototype.getInfo = async () => ({ info: {} });
+		LargePDFParse.prototype.destroy = async () => {};
+
+		const calls = [];
+		const mockServer = {
+			server: {
+				createMessage: async ({ messages }) => {
+					const text = messages[0].content.text;
+					calls.push(text);
+
+					if (text.includes("part 1 of")) {
+						return {
+							content: { type: "text", text: "Summary of part 1" },
+							model: "test-model",
+						};
+					} else if (text.includes("part 2 of")) {
+						return {
+							content: { type: "text", text: "Summary of part 2" },
+							model: "test-model",
+						};
+					} else if (text.includes("synthesize")) {
+						return {
+							content: {
+								type: "text",
+								text: "Combined summary of parts 1 and 2",
+							},
+							model: "test-model",
+						};
+					}
+					throw new Error("Unexpected call");
+				},
+			},
+		};
+
+		const result = await fetchPdf({
+			url: "http://example.com/large.pdf",
+			ask: "Summarize",
+			askMaxInputTokens: 20000, // Force splitting
+			askSplitAndSynthesize: true,
+			_PDFParse: LargePDFParse,
+			_server: mockServer,
+		});
+
+		assert.strictEqual(result.chunksProcessed, 2);
+		assert.strictEqual(result.answer, "Combined summary of parts 1 and 2");
+		assert.strictEqual(calls.length, 3); // 2 chunks + 1 synthesis
+	});
+
+	it("should reject documents exceeding 20 MB hard limit even with splitAndSynthesize", async () => {
+		// Create a mock that returns a huge document
+		function HugePDFParse() {}
+		HugePDFParse.prototype.getText = async () => ({
+			text: "x".repeat(21 * 1024 * 1024), // 21 MB
+			total: 1000,
+		});
+		HugePDFParse.prototype.getInfo = async () => ({ info: {} });
+		HugePDFParse.prototype.destroy = async () => {};
+
+		const mockServer = {
+			server: {
+				createMessage: async () => {
+					throw new Error("Should not be called");
+				},
+			},
+		};
+
+		await assert.rejects(
+			async () => {
+				await fetchPdf({
+					url: "http://example.com/huge.pdf",
+					ask: "Summarize",
+					askSplitAndSynthesize: true,
+					_PDFParse: HugePDFParse,
+					_server: mockServer,
+				});
+			},
+			(err) => {
+				assert.ok(err.message.includes("20 MB"));
+				return true;
+			},
+		);
 	});
 
 	it("should pass timeout to createMessage in ask mode", async () => {
