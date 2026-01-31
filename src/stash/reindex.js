@@ -1,8 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { classifyDocument } from "./classify.js";
+import {
+	classifyDocument,
+	ensureTopics,
+	normalizeClassification,
+} from "./classify.js";
 import { getTextPath } from "./extract.js";
 import { extractText, PLAINTEXT_TYPES } from "./extractors.js";
+import { buildStorePath, getAbsoluteStorePath } from "./paths.js";
 
 async function pathExists(filePath, _fs) {
 	try {
@@ -59,21 +64,16 @@ export async function reindexStash({
 				existingTopics,
 				_server,
 			);
+			const normalized = normalizeClassification(classification);
 
-			for (const newTopic of classification.newTopics || []) {
-				_db.getOrCreateTopic({
-					name: newTopic.name,
-					description: newTopic.description,
-				});
-			}
+			ensureTopics(_db, normalized.newTopics);
 
-			const newRelativePath = path.join(
-				"store",
-				classification.primaryTopic,
+			const newRelativePath = buildStorePath(
+				normalized.primaryTopic,
 				doc.filename,
 			);
-			const oldPath = path.join(_stashRoot, doc.store_path);
-			const newPath = path.join(_stashRoot, newRelativePath);
+			const oldPath = getAbsoluteStorePath(_stashRoot, doc.store_path);
+			const newPath = getAbsoluteStorePath(_stashRoot, newRelativePath);
 			const newDir = path.dirname(newPath);
 
 			await _fs.mkdir(newDir, { recursive: true });
@@ -83,8 +83,14 @@ export async function reindexStash({
 			}
 
 			if (!PLAINTEXT_TYPES.has(doc.file_type)) {
-				const oldTextPath = path.join(_stashRoot, `${doc.store_path}.txt`);
-				const newTextPath = path.join(_stashRoot, `${newRelativePath}.txt`);
+				const oldTextPath = getAbsoluteStorePath(
+					_stashRoot,
+					`${doc.store_path}.txt`,
+				);
+				const newTextPath = getAbsoluteStorePath(
+					_stashRoot,
+					`${newRelativePath}.txt`,
+				);
 				if (
 					oldTextPath !== newTextPath &&
 					(await pathExists(oldTextPath, _fs))
@@ -97,11 +103,11 @@ export async function reindexStash({
 
 			_db.updateDocument({
 				id,
-				summary: classification.summary,
+				summary: normalized.summary,
 				storePath: newRelativePath,
 				charCount: fullText.length,
-				primaryTopic: classification.primaryTopic,
-				secondaryTopics: classification.secondaryTopics || [],
+				primaryTopic: normalized.primaryTopic,
+				secondaryTopics: normalized.secondaryTopics,
 			});
 
 			reindexed.push(id);

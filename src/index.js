@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -14,6 +13,7 @@ import {
 	reindexStash,
 	searchStash,
 } from "./stash/index.js";
+import { getInboxPath } from "./stash/paths.js";
 import { askWeb } from "./web-ask.js";
 import { extractFromUrl } from "./web-extract.js";
 import { fetchWebPage } from "./web-fetch.js";
@@ -405,7 +405,7 @@ server.registerTool(
 	},
 	async () => {
 		try {
-			const inboxPath = path.join(getStashRoot(), "inbox");
+			const inboxPath = getInboxPath(getStashRoot());
 			const { command, args } = await openFolder(inboxPath);
 			return {
 				content: [

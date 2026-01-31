@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { StashDatabase } from "./db.js";
+import { getInboxPath, getStoreRoot } from "./paths.js";
 
 let stashRoot = null;
 let database = null;
@@ -22,8 +23,8 @@ export function getDatabase() {
 
 export async function initializeStash() {
 	const root = getStashRoot();
-	await fs.mkdir(path.join(root, "inbox"), { recursive: true });
-	await fs.mkdir(path.join(root, "store"), { recursive: true });
+	await fs.mkdir(getInboxPath(root), { recursive: true });
+	await fs.mkdir(getStoreRoot(root), { recursive: true });
 	// Initialize DB (runs migrations)
 	getDatabase();
 }

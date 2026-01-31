@@ -1,3 +1,5 @@
+import { extractResponseText } from "../llm.js";
+
 const MAX_CLASSIFICATION_CHARS = 50000;
 const SAMPLE_CHUNKS = 5;
 
@@ -97,6 +99,29 @@ export function sampleTextForClassification(
 		.trim();
 }
 
+export function normalizeClassification(classification) {
+	return {
+		summary: classification.summary,
+		primaryTopic: classification.primaryTopic,
+		secondaryTopics: Array.isArray(classification.secondaryTopics)
+			? classification.secondaryTopics
+			: [],
+		newTopics: Array.isArray(classification.newTopics)
+			? classification.newTopics
+			: [],
+	};
+}
+
+export function ensureTopics(_db, newTopics) {
+	for (const newTopic of newTopics) {
+		if (!newTopic?.name) continue;
+		_db.getOrCreateTopic({
+			name: newTopic.name,
+			description: newTopic.description,
+		});
+	}
+}
+
 export async function classifyDocument(
 	filename,
 	text,
@@ -127,19 +152,7 @@ export async function classifyDocument(
 		{ timeout: 60000 },
 	);
 
-	// Extract text from response
-	const responseContent = result.content;
-	const responseText =
-		typeof responseContent === "string"
-			? responseContent
-			: Array.isArray(responseContent)
-				? responseContent
-						.filter((block) => block.type === "text")
-						.map((block) => block.text)
-						.join("\n")
-				: responseContent.type === "text"
-					? responseContent.text
-					: JSON.stringify(responseContent);
+	const responseText = extractResponseText(result);
 
 	// Parse JSON from response
 	const jsonMatch = responseText.match(/\{[\s\S]*\}/);

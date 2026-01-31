@@ -1,7 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { classifyDocument } from "./classify.js";
+import {
+	classifyDocument,
+	ensureTopics,
+	normalizeClassification,
+} from "./classify.js";
 import { detectFileType, extractText, PLAINTEXT_TYPES } from "./extractors.js";
+import { buildStorePath, getInboxPath, getStoreRoot } from "./paths.js";
 
 export async function processInbox({
 	_server,
@@ -10,8 +15,8 @@ export async function processInbox({
 	_fs = fs,
 	_stashRoot,
 }) {
-	const inboxPath = path.join(_stashRoot, "inbox");
-	const storePath = path.join(_stashRoot, "store");
+	const inboxPath = getInboxPath(_stashRoot);
+	const storePath = getStoreRoot(_stashRoot);
 
 	// Ensure directories exist
 	await _fs.mkdir(inboxPath, { recursive: true });
@@ -54,17 +59,13 @@ export async function processInbox({
 				existingTopics,
 				_server,
 			);
+			const normalized = normalizeClassification(classification);
 
 			// Create new topics if needed
-			for (const newTopic of classification.newTopics || []) {
-				_db.getOrCreateTopic({
-					name: newTopic.name,
-					description: newTopic.description,
-				});
-			}
+			ensureTopics(_db, normalized.newTopics);
 
 			// Create topic directory: store/{primaryTopic}/
-			const topicDir = path.join(storePath, classification.primaryTopic);
+			const topicDir = path.join(storePath, normalized.primaryTopic);
 			await _fs.mkdir(topicDir, { recursive: true });
 
 			// Move original file to store/{topic}/{filename}
@@ -78,19 +79,18 @@ export async function processInbox({
 			}
 
 			// Insert into database
-			const relativeStorePath = path.join(
-				"store",
-				classification.primaryTopic,
+			const relativeStorePath = buildStorePath(
+				normalized.primaryTopic,
 				filename,
 			);
 			const docId = _db.insertDocument({
 				filename,
 				fileType,
-				summary: classification.summary,
+				summary: normalized.summary,
 				storePath: relativeStorePath,
 				charCount,
-				primaryTopic: classification.primaryTopic,
-				secondaryTopics: classification.secondaryTopics || [],
+				primaryTopic: normalized.primaryTopic,
+				secondaryTopics: normalized.secondaryTopics,
 			});
 
 			const doc = _db.getDocument(docId);
