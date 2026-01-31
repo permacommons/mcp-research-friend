@@ -1,4 +1,5 @@
 import { extractResponseText } from "../llm.js";
+import { isValidTopicName } from "./paths.js";
 
 const MAX_CLASSIFICATION_CHARS = 50000;
 const SAMPLE_CHUNKS = 5;
@@ -115,6 +116,9 @@ export function normalizeClassification(classification) {
 export function ensureTopics(_db, newTopics) {
 	for (const newTopic of newTopics) {
 		if (!newTopic?.name) continue;
+		if (!isValidTopicName(newTopic.name)) {
+			throw new Error(`Invalid topic name: ${newTopic.name}`);
+		}
 		_db.getOrCreateTopic({
 			name: newTopic.name,
 			description: newTopic.description,

@@ -245,6 +245,32 @@ describe("processInbox", () => {
 		assert.strictEqual(topics.length, 1);
 	});
 
+	it("should reject invalid topic names from classification", async () => {
+		const inboxPath = path.join(tempDir, "inbox");
+		await fs.mkdir(inboxPath, { recursive: true });
+		await fs.writeFile(path.join(inboxPath, "doc.md"), "# Doc");
+
+		const mockServer = createMockServer({
+			summary: "A document",
+			primaryTopic: "../escape",
+			secondaryTopics: [],
+			newTopics: [],
+		});
+
+		const result = await processInbox({
+			_server: mockServer,
+			_db: db,
+			_extractText: mockExtractText,
+			_fs: fs,
+			_stashRoot: tempDir,
+		});
+
+		assert.strictEqual(result.processed.length, 0);
+		assert.strictEqual(result.errors.length, 1);
+		assert.strictEqual(result.errors[0].filename, "doc.md");
+		assert.ok(result.errors[0].error.includes("Invalid topic name"));
+	});
+
 	it("should return full text for short documents", () => {
 		const text = "Short document text.";
 		const sampled = sampleTextForClassification(text);

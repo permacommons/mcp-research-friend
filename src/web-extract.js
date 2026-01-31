@@ -159,6 +159,11 @@ async function fetchWebContent(
 		if (!response) {
 			throw new Error(`No response received for ${url}`);
 		}
+		const finalUrlValue = page.url();
+		const finalUrlParsed = new URL(finalUrlValue);
+		if (!["http:", "https:"].includes(finalUrlParsed.protocol)) {
+			throw new Error("Only http/https URLs are allowed");
+		}
 
 		if (waitMs > 0) {
 			await page.waitForTimeout(waitMs);
@@ -166,7 +171,7 @@ async function fetchWebContent(
 
 		const title = await page.title();
 		const rawHtml = await page.content();
-		const finalUrl = page.url();
+		const finalUrl = finalUrlValue;
 
 		// Use Readability to extract main content, then convert to plain text
 		const dom = new JSDOM(rawHtml, { url: finalUrl });
@@ -224,6 +229,10 @@ export async function extractFromUrl({
 	_chromium = chromium,
 	_detectContentType = detectContentType,
 }) {
+	const parsedUrl = new URL(url);
+	if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+		throw new Error("Only http/https URLs are allowed");
+	}
 	// Check cache first
 	const cached = getFromCache(url);
 	let fullText, metadata, contentType;

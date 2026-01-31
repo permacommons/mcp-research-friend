@@ -185,6 +185,29 @@ describe("Web Ask", () => {
 	});
 
 	describe("Error handling", () => {
+		it("should reject non-http(s) URLs", async () => {
+			const mockServer = {
+				server: {
+					createMessage: async () => {
+						throw new Error("Should not be called");
+					},
+				},
+			};
+
+			await assert.rejects(
+				async () => {
+					await askWeb({
+						url: "file:///etc/passwd",
+						ask: "Summarize",
+						_PDFParse: createMockPDFParse(),
+						_detectContentType: async () => "application/pdf",
+						_server: mockServer,
+					});
+				},
+				{ message: "Only http/https URLs are allowed" },
+			);
+		});
+
 		it("should throw error if server is not provided", async () => {
 			await assert.rejects(
 				async () => {

@@ -6,7 +6,12 @@ import {
 	normalizeClassification,
 } from "./classify.js";
 import { detectFileType, extractText, PLAINTEXT_TYPES } from "./extractors.js";
-import { buildStorePath, getInboxPath, getStoreRoot } from "./paths.js";
+import {
+	buildStorePath,
+	getInboxPath,
+	getStoreRoot,
+	isValidTopicName,
+} from "./paths.js";
 
 export async function processInbox({
 	_server,
@@ -60,6 +65,9 @@ export async function processInbox({
 				_server,
 			);
 			const normalized = normalizeClassification(classification);
+			if (!isValidTopicName(normalized.primaryTopic)) {
+				throw new Error(`Invalid topic name: ${normalized.primaryTopic}`);
+			}
 
 			// Create new topics if needed
 			ensureTopics(_db, normalized.newTopics);

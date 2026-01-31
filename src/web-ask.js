@@ -43,6 +43,10 @@ export async function askWeb({
 	if (!_server) {
 		throw new Error("Server instance required for ask mode");
 	}
+	const parsedUrl = new URL(url);
+	if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+		throw new Error("Only http/https URLs are allowed");
+	}
 
 	// Detect content type
 	const detectedType = await _detectContentType(url);

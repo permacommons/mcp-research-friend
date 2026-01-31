@@ -7,7 +7,11 @@ import {
 } from "./classify.js";
 import { getTextPath } from "./extract.js";
 import { extractText, PLAINTEXT_TYPES } from "./extractors.js";
-import { buildStorePath, getAbsoluteStorePath } from "./paths.js";
+import {
+	buildStorePath,
+	getAbsoluteStorePath,
+	isValidTopicName,
+} from "./paths.js";
 
 async function pathExists(filePath, _fs) {
 	try {
@@ -65,6 +69,9 @@ export async function reindexStash({
 				_server,
 			);
 			const normalized = normalizeClassification(classification);
+			if (!isValidTopicName(normalized.primaryTopic)) {
+				throw new Error(`Invalid topic name: ${normalized.primaryTopic}`);
+			}
 
 			ensureTopics(_db, normalized.newTopics);
 

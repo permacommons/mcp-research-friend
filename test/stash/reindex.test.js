@@ -91,4 +91,41 @@ describe("reindexStash", () => {
 		assert.ok(primaryTopic);
 		assert.strictEqual(primaryTopic.name, "new-topic");
 	});
+
+	it("should reject invalid topic names from classification", async () => {
+		const storeDir = path.join(tempDir, "store", "old-topic");
+		await fs.mkdir(storeDir, { recursive: true });
+		const originalPath = path.join(storeDir, "doc.txt");
+		await fs.writeFile(originalPath, "Document contents for reindexing.");
+
+		const docId = db.insertDocument({
+			filename: "doc.txt",
+			fileType: "txt",
+			summary: "Old summary",
+			storePath: path.join("store", "old-topic", "doc.txt"),
+			charCount: 35,
+			primaryTopic: "old-topic",
+			secondaryTopics: [],
+		});
+
+		const mockServer = createMockServer({
+			summary: "New summary",
+			primaryTopic: "../escape",
+			secondaryTopics: [],
+			newTopics: [],
+		});
+
+		const result = await reindexStash({
+			ids: [docId],
+			_server: mockServer,
+			_db: db,
+			_fs: fs,
+			_stashRoot: tempDir,
+		});
+
+		assert.strictEqual(result.reindexed.length, 0);
+		assert.strictEqual(result.errors.length, 1);
+		assert.strictEqual(result.errors[0].id, docId);
+		assert.ok(result.errors[0].error.includes("Invalid topic name"));
+	});
 });
