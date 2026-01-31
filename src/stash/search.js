@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { rgPath } from "@vscode/ripgrep";
 import { EXTRACTION_TYPES } from "./extractors.js";
+import { getStoreRoot } from "./paths.js";
 
 /**
  * Parse a search query into terms.
@@ -200,8 +201,8 @@ export async function searchStash({
 
 	// Search content via ripgrep (OR pattern to find candidates)
 	const searchPath = topic
-		? path.join(_stashRoot, "store", topic)
-		: path.join(_stashRoot, "store");
+		? path.join(getStoreRoot(_stashRoot), topic)
+		: getStoreRoot(_stashRoot);
 
 	// If search path doesn't exist, return empty results
 	if (!fs.existsSync(searchPath)) {

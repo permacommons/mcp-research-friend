@@ -213,10 +213,22 @@ Open the stash inbox folder in your file manager for easier drag-and-drop.
 #### stash_process_inbox
 
 Process files in `inbox/`, classify them into topics, extract text, and store results.
+For long documents, classification uses sampled sections (start/middle/end plus a few random chunks) to improve topic accuracy.
 
 **Returns:**
 - `processed` - Number of files processed
 - `skipped` - Number of files skipped
+- `errors` - Any errors encountered
+
+#### reindex_stash
+
+Regenerate summaries, re-allocate topics, and update store metadata for stashed documents. If `ids` is omitted or empty, all documents are reindexed.
+
+**Parameters:**
+- `ids` - Document IDs to reindex (optional)
+
+**Returns:**
+- `reindexed` - Document IDs reindexed
 - `errors` - Any errors encountered
 
 #### stash_list

@@ -28,6 +28,10 @@ export async function fetchWebPage({
 	// Dependency injection for testing
 	_chromium = chromium,
 }) {
+	const parsedUrl = new URL(url);
+	if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+		throw new Error("Only http/https URLs are allowed");
+	}
 	const browser = await _chromium.launch({
 		headless,
 		slowMo: slowMoMs,
@@ -41,6 +45,10 @@ export async function fetchWebPage({
 		});
 		if (!response) {
 			throw new Error(`No response received for ${url}`);
+		}
+		const finalUrl = new URL(page.url());
+		if (!["http:", "https:"].includes(finalUrl.protocol)) {
+			throw new Error("Only http/https URLs are allowed");
 		}
 
 		if (waitMs > 0) {

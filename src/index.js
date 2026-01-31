@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -11,8 +10,10 @@ import {
 	initializeStash,
 	listStash,
 	processInbox,
+	reindexStash,
 	searchStash,
 } from "./stash/index.js";
+import { getInboxPath } from "./stash/paths.js";
 import { askWeb } from "./web-ask.js";
 import { extractFromUrl } from "./web-extract.js";
 import { fetchWebPage } from "./web-fetch.js";
@@ -355,6 +356,44 @@ server.registerTool(
 	},
 );
 
+// reindex-stash - Reindex documents in the stash
+server.registerTool(
+	"reindex_stash",
+	{
+		title: "Reindex Stash",
+		description:
+			"Regenerate summaries, re-allocate topics, and update store metadata for stashed documents. " +
+			"If ids is omitted or empty, reindexes all documents.",
+		inputSchema: {
+			ids: z
+				.array(z.number().int().positive())
+				.optional()
+				.describe(
+					"Document IDs to reindex. If omitted or empty, all documents are reindexed.",
+				),
+		},
+	},
+	async (args) => {
+		try {
+			const result = await reindexStash({
+				...args,
+				_server: server,
+				_db: getDatabase(),
+				_stashRoot: getStashRoot(),
+			});
+			return {
+				content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+			};
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				content: [{ type: "text", text: `Error reindexing stash: ${message}` }],
+				isError: true,
+			};
+		}
+	},
+);
+
 // stash-open-inbox - Open the stash inbox folder
 server.registerTool(
 	"stash_open_inbox",
@@ -366,7 +405,7 @@ server.registerTool(
 	},
 	async () => {
 		try {
-			const inboxPath = path.join(getStashRoot(), "inbox");
+			const inboxPath = getInboxPath(getStashRoot());
 			const { command, args } = await openFolder(inboxPath);
 			return {
 				content: [

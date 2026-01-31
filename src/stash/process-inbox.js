@@ -1,90 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+	classifyDocument,
+	ensureTopics,
+	normalizeClassification,
+} from "./classify.js";
 import { detectFileType, extractText, PLAINTEXT_TYPES } from "./extractors.js";
-
-const CLASSIFICATION_PROMPT = `You are classifying a document into topics for a research stash.
-
-## Existing Topics
-{existingTopics}
-
-## Rules
-- Use existing topics when the document fits reasonably well
-- Create new topics only when no existing topic is appropriate
-- Topic names: lowercase-kebab-case, 1-3 words, descriptive
-- Choose ONE primary topic and 0-3 secondary topics
-- Primary topic = where you'd look for this document first
-
-## Document
-Filename: {filename}
-
-Content (first 8000 chars):
----
-{text}
----
-
-Respond with JSON only:
-{
-  "summary": "1-2 sentence summary",
-  "primaryTopic": "existing-or-new-topic",
-  "secondaryTopics": ["optional", "additional"],
-  "newTopics": [{"name": "new-topic", "description": "Brief description"}]
-}`;
-
-function formatExistingTopics(topics) {
-	if (topics.length === 0) {
-		return "(none yet)";
-	}
-	return topics
-		.map(
-			(t) =>
-				`- ${t.name} (${t.doc_count} docs): ${t.description || "No description"}`,
-		)
-		.join("\n");
-}
-
-async function classifyDocument(filename, text, existingTopics, _server) {
-	const prompt = CLASSIFICATION_PROMPT.replace(
-		"{existingTopics}",
-		formatExistingTopics(existingTopics),
-	)
-		.replace("{filename}", filename)
-		.replace("{text}", text.slice(0, 8000));
-
-	const result = await _server.server.createMessage(
-		{
-			messages: [
-				{
-					role: "user",
-					content: { type: "text", text: prompt },
-				},
-			],
-			systemPrompt: "You classify documents. Respond only with valid JSON.",
-			maxTokens: 512,
-		},
-		{ timeout: 60000 },
-	);
-
-	// Extract text from response
-	const responseContent = result.content;
-	const responseText =
-		typeof responseContent === "string"
-			? responseContent
-			: Array.isArray(responseContent)
-				? responseContent
-						.filter((block) => block.type === "text")
-						.map((block) => block.text)
-						.join("\n")
-				: responseContent.type === "text"
-					? responseContent.text
-					: JSON.stringify(responseContent);
-
-	// Parse JSON from response
-	const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-	if (!jsonMatch) {
-		throw new Error("No JSON found in classification response");
-	}
-	return JSON.parse(jsonMatch[0]);
-}
+import {
+	buildStorePath,
+	getInboxPath,
+	getStoreRoot,
+	isValidTopicName,
+} from "./paths.js";
 
 export async function processInbox({
 	_server,
@@ -93,8 +20,8 @@ export async function processInbox({
 	_fs = fs,
 	_stashRoot,
 }) {
-	const inboxPath = path.join(_stashRoot, "inbox");
-	const storePath = path.join(_stashRoot, "store");
+	const inboxPath = getInboxPath(_stashRoot);
+	const storePath = getStoreRoot(_stashRoot);
 
 	// Ensure directories exist
 	await _fs.mkdir(inboxPath, { recursive: true });
@@ -137,17 +64,16 @@ export async function processInbox({
 				existingTopics,
 				_server,
 			);
-
-			// Create new topics if needed
-			for (const newTopic of classification.newTopics || []) {
-				_db.getOrCreateTopic({
-					name: newTopic.name,
-					description: newTopic.description,
-				});
+			const normalized = normalizeClassification(classification);
+			if (!isValidTopicName(normalized.primaryTopic)) {
+				throw new Error(`Invalid topic name: ${normalized.primaryTopic}`);
 			}
 
+			// Create new topics if needed
+			ensureTopics(_db, normalized.newTopics);
+
 			// Create topic directory: store/{primaryTopic}/
-			const topicDir = path.join(storePath, classification.primaryTopic);
+			const topicDir = path.join(storePath, normalized.primaryTopic);
 			await _fs.mkdir(topicDir, { recursive: true });
 
 			// Move original file to store/{topic}/{filename}
@@ -161,19 +87,18 @@ export async function processInbox({
 			}
 
 			// Insert into database
-			const relativeStorePath = path.join(
-				"store",
-				classification.primaryTopic,
+			const relativeStorePath = buildStorePath(
+				normalized.primaryTopic,
 				filename,
 			);
 			const docId = _db.insertDocument({
 				filename,
 				fileType,
-				summary: classification.summary,
+				summary: normalized.summary,
 				storePath: relativeStorePath,
 				charCount,
-				primaryTopic: classification.primaryTopic,
-				secondaryTopics: classification.secondaryTopics || [],
+				primaryTopic: normalized.primaryTopic,
+				secondaryTopics: normalized.secondaryTopics,
 			});
 
 			const doc = _db.getDocument(docId);

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { sampleTextForClassification } from "../../src/stash/classify.js";
 import { StashDatabase } from "../../src/stash/db.js";
 import { processInbox } from "../../src/stash/process-inbox.js";
 
@@ -242,5 +243,52 @@ describe("processInbox", () => {
 
 		const topics = db.getTopics();
 		assert.strictEqual(topics.length, 1);
+	});
+
+	it("should reject invalid topic names from classification", async () => {
+		const inboxPath = path.join(tempDir, "inbox");
+		await fs.mkdir(inboxPath, { recursive: true });
+		await fs.writeFile(path.join(inboxPath, "doc.md"), "# Doc");
+
+		const mockServer = createMockServer({
+			summary: "A document",
+			primaryTopic: "../escape",
+			secondaryTopics: [],
+			newTopics: [],
+		});
+
+		const result = await processInbox({
+			_server: mockServer,
+			_db: db,
+			_extractText: mockExtractText,
+			_fs: fs,
+			_stashRoot: tempDir,
+		});
+
+		assert.strictEqual(result.processed.length, 0);
+		assert.strictEqual(result.errors.length, 1);
+		assert.strictEqual(result.errors[0].filename, "doc.md");
+		assert.ok(result.errors[0].error.includes("Invalid topic name"));
+	});
+
+	it("should return full text for short documents", () => {
+		const text = "Short document text.";
+		const sampled = sampleTextForClassification(text);
+		assert.strictEqual(sampled, text);
+	});
+
+	it("should sample from start, middle, and end for long documents", () => {
+		const text =
+			"STARTTOKEN\n" +
+			"a".repeat(9800) +
+			"MIDTOKEN\n" +
+			"b".repeat(9800) +
+			"ENDTOKEN";
+
+		const sampled = sampleTextForClassification(text, { rng: () => 0.42 });
+
+		assert.ok(sampled.includes("STARTTOKEN"));
+		assert.ok(sampled.includes("MIDTOKEN"));
+		assert.ok(sampled.includes("ENDTOKEN"));
 	});
 });

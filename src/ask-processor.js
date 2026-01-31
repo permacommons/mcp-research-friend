@@ -1,18 +1,7 @@
+import { extractResponseText } from "./llm.js";
+
 const CHARS_PER_TOKEN = 4;
 const HARD_LIMIT_CHARS = 20 * 1024 * 1024; // 20 MB
-
-function extractResponseText(result) {
-	const content = result.content;
-	if (typeof content === "string") return content;
-	if (Array.isArray(content)) {
-		return content
-			.filter((block) => block.type === "text")
-			.map((block) => block.text)
-			.join("\n");
-	}
-	if (content.type === "text") return content.text;
-	return JSON.stringify(content);
-}
 
 async function processSingleChunk({
 	text,

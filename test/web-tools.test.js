@@ -89,6 +89,18 @@ describe("Research Friend Tools", () => {
 		assert.strictEqual(result.meta.description, "Mock Description");
 	});
 
+	it("fetchWebPage should reject non-http(s) URLs", async () => {
+		await assert.rejects(
+			async () => {
+				await fetchWebPage({
+					url: "file:///etc/passwd",
+					_chromium: createMockChromium(),
+				});
+			},
+			{ message: "Only http/https URLs are allowed" },
+		);
+	});
+
 	it("searchWeb should return search results", async () => {
 		const mockChromium = createSearchMockChromium();
 

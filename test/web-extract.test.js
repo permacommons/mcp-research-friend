@@ -291,4 +291,19 @@ describe("Web Extract", () => {
 			assert.strictEqual(result.contentType, "html");
 		});
 	});
+
+	describe("URL validation", () => {
+		it("should reject non-http(s) URLs", async () => {
+			await assert.rejects(
+				async () => {
+					await extractFromUrl({
+						url: "file:///etc/passwd",
+						_PDFParse: MockPDFParse,
+						_detectContentType: async () => "application/pdf",
+					});
+				},
+				{ message: "Only http/https URLs are allowed" },
+			);
+		});
+	});
 });

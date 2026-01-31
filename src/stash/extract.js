@@ -13,7 +13,7 @@ const truncate = (value, maxChars) => {
 /**
  * Get the text file path for a document
  */
-function getTextPath(doc, stashRoot) {
+export function getTextPath(doc, stashRoot) {
 	return PLAINTEXT_TYPES.has(doc.file_type)
 		? path.join(stashRoot, doc.store_path)
 		: path.join(stashRoot, `${doc.store_path}.txt`);

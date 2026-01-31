@@ -212,6 +212,45 @@ export class StashDatabase {
 			.all();
 	}
 
+	updateDocument({
+		id,
+		summary,
+		storePath,
+		charCount,
+		primaryTopic,
+		secondaryTopics = [],
+	}) {
+		const updateDoc = this.db.prepare(`
+			UPDATE documents
+			SET summary = ?, store_path = ?, char_count = ?
+			WHERE id = ?
+		`);
+
+		const deleteTopics = this.db.prepare(`
+			DELETE FROM document_topics WHERE doc_id = ?
+		`);
+
+		const insertDocTopic = this.db.prepare(`
+			INSERT INTO document_topics (doc_id, topic_id, is_primary)
+			VALUES (?, ?, ?)
+		`);
+
+		const transaction = this.db.transaction(() => {
+			updateDoc.run(summary, storePath, charCount, id);
+			deleteTopics.run(id);
+
+			const primaryTopicId = this.getOrCreateTopic({ name: primaryTopic });
+			insertDocTopic.run(id, primaryTopicId, 1);
+
+			for (const topicName of secondaryTopics) {
+				const topicId = this.getOrCreateTopic({ name: topicName });
+				insertDocTopic.run(id, topicId, 0);
+			}
+		});
+
+		transaction();
+	}
+
 	searchByFilename(terms, topic = null) {
 		// terms is an array of search terms (from parseSearchQuery)
 		// Match if ANY term appears in filename
