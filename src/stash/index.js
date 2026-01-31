@@ -29,7 +29,7 @@ export async function initializeStash() {
 }
 
 export { StashDatabase } from "./db.js";
-export { extractFromStash } from "./extract.js";
+export { askStashDocument, extractFromStash } from "./extract.js";
 export { detectFileType, extractText } from "./extractors.js";
 export { listStash } from "./list.js";
 export { processInbox } from "./process-inbox.js";
