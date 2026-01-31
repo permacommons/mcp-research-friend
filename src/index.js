@@ -3,8 +3,8 @@ import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { fetchPdf } from "./pdf-fetch.js";
 import {
+	askStashDocument,
 	extractFromStash,
 	getDatabase,
 	getStashRoot,
@@ -13,6 +13,8 @@ import {
 	processInbox,
 	searchStash,
 } from "./stash/index.js";
+import { askWeb } from "./web-ask.js";
+import { extractFromUrl } from "./web-extract.js";
 import { fetchWebPage } from "./web-fetch.js";
 import { searchWeb } from "./web-search.js";
 
@@ -45,14 +47,15 @@ function openFolder(folderPath, { _spawn = spawn } = {}) {
 	});
 }
 
-// friendly_fetch - Fetch and extract content from a web page
+// friendly_web_fetch - Fetch a web page and return its content
 server.registerTool(
-	"friendly_fetch",
+	"friendly_web_fetch",
 	{
 		title: "Fetch Web Page",
 		description:
-			"Fetch a web page and extract its content as markdown (with links), plain text, or HTML. " +
-			"Uses Readability to extract the main content and a real browser (Playwright) for JavaScript-heavy sites.",
+			"Fetch a web page and return its content as markdown (with links), plain text, or HTML. " +
+			"Returns page metadata (og:tags, author, canonical URL). " +
+			"For PDFs, pagination, or searching within content, use friendly_web_extract instead.",
 		inputSchema: {
 			url: z.string().url().describe("The URL to fetch"),
 			outputFormat: z
@@ -156,17 +159,17 @@ server.registerTool(
 	},
 );
 
-// friendly_pdf_extract - Fetch and extract text from a PDF
+// friendly_web_extract - Extract content from a URL (auto-detects PDF vs web page)
 server.registerTool(
-	"friendly_pdf_extract",
+	"friendly_web_extract",
 	{
-		title: "Fetch PDF",
+		title: "Extract from URL",
 		description:
-			"Fetch a PDF from a URL and extract its text content. " +
-			"Returns the text along with metadata like title, author, and page count. " +
-			"Use 'ask' to have an LLM answer questions about the PDF without loading it into your context.",
+			"Extract content from a URL (auto-detects PDF vs web page). " +
+			"For PDFs, returns text with metadata like title, author, and page count. " +
+			"For web pages, extracts main content using Readability.",
 		inputSchema: {
-			url: z.string().url().describe("The URL of the PDF to fetch"),
+			url: z.string().url().describe("The URL to fetch (PDF or web page)"),
 			maxChars: z
 				.number()
 				.int()
@@ -185,12 +188,70 @@ server.registerTool(
 				.describe(
 					"Search for a phrase and return matches with context instead of full content",
 				),
-			ask: z
-				.string()
+			contextChars: z
+				.number()
+				.int()
+				.positive()
 				.optional()
 				.describe(
-					"Have an LLM process the document with this request (e.g., summarize, extract key points, answer a question). " +
-						"Keeps document out of main context. Write the request as if addressing the entire document, " +
+					"Characters of context around each search match (default: 200)",
+				),
+			// Web-specific options (ignored for PDFs)
+			waitMs: z
+				.number()
+				.int()
+				.nonnegative()
+				.optional()
+				.describe(
+					"Extra milliseconds to wait after page load for dynamic content (web only)",
+				),
+			timeoutMs: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe(
+					"Maximum time to wait for page load (default: 15000, web only)",
+				),
+			headless: z
+				.boolean()
+				.optional()
+				.describe("Run browser without UI (default: true, web only)"),
+		},
+	},
+	async (args) => {
+		try {
+			const result = await extractFromUrl(args);
+			return {
+				content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+			};
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				content: [
+					{ type: "text", text: `Error extracting content: ${message}` },
+				],
+				isError: true,
+			};
+		}
+	},
+);
+
+// friendly_web_ask - Ask questions about a URL (auto-detects PDF vs web page)
+server.registerTool(
+	"friendly_web_ask",
+	{
+		title: "Ask about URL",
+		description:
+			"Fetch a URL (PDF or web page) and have an LLM answer questions about it. " +
+			"Auto-detects content type. Keeps document out of main context.",
+		inputSchema: {
+			url: z.string().url().describe("The URL to fetch (PDF or web page)"),
+			ask: z
+				.string()
+				.describe(
+					"Question or instruction for the LLM (e.g., summarize, extract key points, answer a question). " +
+						"Write the request as if addressing the entire document, " +
 						"even when using askSplitAndSynthesize - chunking is handled automatically.",
 				),
 			askTimeout: z
@@ -199,7 +260,7 @@ server.registerTool(
 				.positive()
 				.optional()
 				.describe(
-					"Timeout in milliseconds for 'ask' mode LLM processing (default: 300000 = 5 minutes)",
+					"Timeout in milliseconds for LLM processing (default: 300000 = 5 minutes)",
 				),
 			askMaxInputTokens: z
 				.number()
@@ -207,7 +268,7 @@ server.registerTool(
 				.positive()
 				.optional()
 				.describe(
-					"Maximum estimated input tokens for ask mode (document + prompt). " +
+					"Maximum estimated input tokens (document + prompt). " +
 						"Default 150000. Reduce for smaller context models.",
 				),
 			askMaxOutputTokens: z
@@ -215,9 +276,7 @@ server.registerTool(
 				.int()
 				.positive()
 				.optional()
-				.describe(
-					"Maximum output tokens for ask mode (model response). Default 4096.",
-				),
+				.describe("Maximum output tokens (model response). Default 4096."),
 			askSplitAndSynthesize: z
 				.boolean()
 				.optional()
@@ -227,26 +286,39 @@ server.registerTool(
 						"many tokens (roughly 2x document size + synthesis). " +
 						"Max document size: 20 MB. Default: false.",
 				),
-			contextChars: z
+			// Web-specific options (ignored for PDFs)
+			waitMs: z
+				.number()
+				.int()
+				.nonnegative()
+				.optional()
+				.describe(
+					"Extra milliseconds to wait after page load for dynamic content (web only)",
+				),
+			timeoutMs: z
 				.number()
 				.int()
 				.positive()
 				.optional()
 				.describe(
-					"Characters of context around each search match (default: 200)",
+					"Maximum time to wait for page load (default: 15000, web only)",
 				),
+			headless: z
+				.boolean()
+				.optional()
+				.describe("Run browser without UI (default: true, web only)"),
 		},
 	},
 	async (args) => {
 		try {
-			const result = await fetchPdf({ ...args, _server: server });
+			const result = await askWeb({ ...args, _server: server });
 			return {
 				content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
 			};
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			return {
-				content: [{ type: "text", text: `Error fetching PDF: ${message}` }],
+				content: [{ type: "text", text: `Error asking about URL: ${message}` }],
 				isError: true,
 			};
 		}
@@ -324,27 +396,48 @@ server.registerTool(
 	{
 		title: "Search Stash",
 		description:
-			"Search documents in the stash using full-text search. " +
-			"Returns matching documents with snippets and relevance ranking.",
+			"Search filenames and content in the stash. " +
+			"Returns matching documents with snippets. " +
+			"Filename matches are listed first.",
 		inputSchema: {
 			query: z.string().min(1).describe("The search query"),
 			topic: z
 				.string()
 				.optional()
 				.describe("Filter results to a specific topic"),
+			ids: z
+				.array(z.number().int().positive())
+				.optional()
+				.describe("Filter results to specific document IDs"),
 			limit: z
 				.number()
 				.int()
 				.positive()
 				.max(100)
 				.optional()
-				.describe("Maximum number of results (default: 20)"),
+				.describe("Maximum number of documents to return (default: 20)"),
 			offset: z
 				.number()
 				.int()
 				.nonnegative()
 				.optional()
-				.describe("Number of results to skip (default: 0)"),
+				.describe("Number of documents to skip (default: 0)"),
+			maxMatchesPerDoc: z
+				.number()
+				.int()
+				.positive()
+				.max(500)
+				.optional()
+				.describe("Maximum matches per document (default: 50)"),
+			context: z
+				.number()
+				.int()
+				.nonnegative()
+				.max(5)
+				.optional()
+				.describe(
+					"Lines of context around each match (default: 1, max: 5). Controls both how close terms must appear to match AND how much surrounding text is returned.",
+				),
 		},
 	},
 	async (args) => {
@@ -374,7 +467,8 @@ server.registerTool(
 		title: "Extract from Stash",
 		description:
 			"Retrieve content from a stashed document. " +
-			"Supports pagination, search within document, and LLM-powered ask mode.",
+			"Supports pagination by character offset or line number. " +
+			"Use line numbers from stash_search results to jump to matches.",
 		inputSchema: {
 			id: z.number().int().positive().describe("The document ID"),
 			maxChars: z
@@ -388,19 +482,56 @@ server.registerTool(
 				.int()
 				.nonnegative()
 				.optional()
-				.describe("Character offset to start from (default: 0)"),
-			search: z
-				.string()
+				.describe(
+					"Character offset to start from (mutually exclusive with 'line')",
+				),
+			line: z
+				.number()
+				.int()
+				.positive()
 				.optional()
 				.describe(
-					"Search for a phrase and return matches with context instead of full content",
+					"Line number to start from (mutually exclusive with 'offset')",
 				),
+		},
+	},
+	async (args) => {
+		try {
+			const result = await extractFromStash({
+				...args,
+				_db: getDatabase(),
+				_stashRoot: getStashRoot(),
+			});
+			return {
+				content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+			};
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				content: [
+					{ type: "text", text: `Error extracting from stash: ${message}` },
+				],
+				isError: true,
+			};
+		}
+	},
+);
+
+// stash-ask - Ask questions about a stashed document
+server.registerTool(
+	"stash_ask",
+	{
+		title: "Ask about Stashed Document",
+		description:
+			"Have an LLM answer questions about a stashed document. " +
+			"Keeps document out of main context.",
+		inputSchema: {
+			id: z.number().int().positive().describe("The document ID"),
 			ask: z
 				.string()
-				.optional()
 				.describe(
-					"Have an LLM process the document with this request (e.g., summarize, extract info, answer a question). " +
-						"Keeps document out of main context. Write the request as if addressing the entire document, " +
+					"Question or instruction for the LLM (e.g., summarize, extract info, answer a question). " +
+						"Write the request as if addressing the entire document, " +
 						"even when using askSplitAndSynthesize - chunking is handled automatically.",
 				),
 			askTimeout: z
@@ -409,7 +540,7 @@ server.registerTool(
 				.positive()
 				.optional()
 				.describe(
-					"Timeout in milliseconds for 'ask' mode LLM processing (default: 300000 = 5 minutes)",
+					"Timeout in milliseconds for LLM processing (default: 300000 = 5 minutes)",
 				),
 			askMaxInputTokens: z
 				.number()
@@ -417,7 +548,7 @@ server.registerTool(
 				.positive()
 				.optional()
 				.describe(
-					"Maximum estimated input tokens for ask mode (document + prompt). " +
+					"Maximum estimated input tokens (document + prompt). " +
 						"Default 150000. Reduce for smaller context models.",
 				),
 			askMaxOutputTokens: z
@@ -425,9 +556,7 @@ server.registerTool(
 				.int()
 				.positive()
 				.optional()
-				.describe(
-					"Maximum output tokens for ask mode (model response). Default 4096.",
-				),
+				.describe("Maximum output tokens (model response). Default 4096."),
 			askSplitAndSynthesize: z
 				.boolean()
 				.optional()
@@ -437,19 +566,11 @@ server.registerTool(
 						"many tokens (roughly 2x document size + synthesis). " +
 						"Max document size: 20 MB. Default: false.",
 				),
-			contextChars: z
-				.number()
-				.int()
-				.positive()
-				.optional()
-				.describe(
-					"Characters of context around each search match (default: 200)",
-				),
 		},
 	},
 	async (args) => {
 		try {
-			const result = await extractFromStash({
+			const result = await askStashDocument({
 				...args,
 				_db: getDatabase(),
 				_server: server,
@@ -462,7 +583,10 @@ server.registerTool(
 			const message = error instanceof Error ? error.message : String(error);
 			return {
 				content: [
-					{ type: "text", text: `Error extracting from stash: ${message}` },
+					{
+						type: "text",
+						text: `Error asking about stash document: ${message}`,
+					},
 				],
 				isError: true,
 			};

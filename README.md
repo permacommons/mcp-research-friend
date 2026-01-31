@@ -68,9 +68,9 @@ Replace `/path/to/mcp-research-friend` with the actual path to this folder on yo
 
 ### Web tools
 
-#### friendly_fetch
+#### friendly_web_fetch
 
-Fetches a web page and extracts its content. By default, returns markdown with links preserved — ideal for LLMs. Uses [Readability](https://github.com/mozilla/readability) to extract the main content (stripping navigation, ads, etc.).
+Fetches a web page and returns its content. By default, returns markdown with links preserved — ideal for LLMs. Uses [Readability](https://github.com/mozilla/readability) to extract the main content (stripping navigation, ads, etc.). For PDFs, pagination, or searching within content, use `friendly_web_extract` instead.
 
 **Parameters:**
 - `url` (required) - The web address to fetch
@@ -113,50 +113,68 @@ Searches the web and returns a list of results.
 **CAPTCHA handling:**
 If a CAPTCHA is detected while running in headless mode, the tool automatically retries with a visible browser window. This gives you a chance to solve the CAPTCHA manually. The `debug_info.retried` field indicates whether this fallback was used.
 
-#### friendly_pdf_extract
+#### friendly_web_extract
 
-Fetches a PDF from a URL and extracts its text content.
+Extracts content from a URL. Auto-detects whether the URL points to a PDF or a web page and handles each appropriately.
 
 **Parameters:**
-- `url` (required) - The URL of the PDF to fetch
+- `url` (required) - The URL to fetch (PDF or web page)
 - `maxChars` - Maximum amount of text to return (default: 40,000 characters)
-- `offset` - Character position to start from (default: 0). Use this to paginate through large PDFs.
+- `offset` - Character position to start from (default: 0). Use this to paginate through large content.
 - `search` - Search for a phrase and return matches with surrounding context instead of full content
-- `ask` - Have an LLM process the document with an instruction (see below)
-- `askMaxInputTokens` - Maximum input tokens per LLM call (default: 150,000)
-- `askMaxOutputTokens` - Maximum output tokens per LLM call (default: 4,096)
-- `askTimeout` - Timeout in milliseconds for `ask` mode (default: 300,000 = 5 minutes)
-- `askSplitAndSynthesize` - For large documents: split into chunks, process each, then synthesize results (default: false). Warning: consumes many tokens.
 - `contextChars` - Characters of context around each search match (default: 200)
+- `waitMs` - Extra time to wait after page load for dynamic content (web pages only)
+- `timeoutMs` - How long to wait before giving up (default: 15 seconds, web pages only)
+- `headless` - Set to `false` to see the browser window (web pages only)
 
 **Returns (normal mode):**
 - `url` - The URL that was requested
-- `title` - The PDF title (from metadata, if available)
-- `author` - The PDF author (from metadata, if available)
-- `creationDate` - When the PDF was created (from metadata, if available)
-- `pageCount` - Number of pages in the PDF
-- `totalChars` - Total characters in the PDF (use with `offset` to paginate)
+- `contentType` - Either `pdf` or `html`
+- `title` - The page/document title
+- `author` - The PDF author (PDFs only, if available)
+- `creationDate` - When the PDF was created (PDFs only, if available)
+- `pageCount` - Number of pages (PDFs only)
+- `totalChars` - Total characters (use with `offset` to paginate)
 - `offset` - The offset that was used
 - `content` - The extracted text content
-- `fetchedAt` - ISO timestamp of when the PDF was fetched
+- `fetchedAt` - ISO timestamp
 - `truncated` - Whether more content remains after this chunk
 
 **Returns (search mode):**
-- `url`, `title`, `author`, `pageCount`, `totalChars`, `fetchedAt` - Same as above
+- `url`, `contentType`, `title`, `totalChars`, `fetchedAt` - Same as above
 - `search` - The search phrase that was used
 - `matchCount` - Number of matches found
 - `matches` - Array of matches, each with `position`, `context`, `prefix`, and `suffix`
 
-**Returns (ask mode):**
-- `url`, `title`, `author`, `pageCount`, `totalChars`, `fetchedAt` - Same as above
+#### friendly_web_ask
+
+Fetches a URL (PDF or web page) and has an LLM answer questions about it. Auto-detects content type. The document is processed in a separate context, keeping your main conversation compact.
+
+**Parameters:**
+- `url` (required) - The URL to fetch (PDF or web page)
+- `ask` (required) - Question or instruction for the LLM (summarize, extract info, answer questions, etc.)
+- `askMaxInputTokens` - Maximum input tokens per LLM call (default: 150,000)
+- `askMaxOutputTokens` - Maximum output tokens per LLM call (default: 4,096)
+- `askTimeout` - Timeout in milliseconds (default: 300,000 = 5 minutes)
+- `askSplitAndSynthesize` - For large documents: split into chunks, process each, then synthesize results (default: false). Warning: consumes many tokens.
+- `waitMs` - Extra time to wait after page load for dynamic content (web pages only)
+- `timeoutMs` - How long to wait before giving up (default: 15 seconds, web pages only)
+- `headless` - Set to `false` to see the browser window (web pages only)
+
+**Returns:**
+- `url` - The URL that was requested
+- `contentType` - Either `pdf` or `html`
+- `title` - The page/document title
+- `totalChars` - Total characters in the document
 - `ask` - The instruction that was given
 - `answer` - The LLM's response
 - `model` - The model that generated the response
 - `chunksProcessed` - Number of chunks processed (1 for small documents, more when using `askSplitAndSynthesize`)
+- `fetchedAt` - ISO timestamp
 
-**Ask mode** uses MCP sampling to have an LLM process the document with any instruction — summarize, extract information, answer questions, generate a FAQ, etc. The document content is sent to the LLM in a separate context, keeping your main conversation context compact. This is useful for:
+**Ask mode** uses MCP sampling to have an LLM process the document with any instruction. This is useful for:
 - Large documents that would overwhelm context
-- Multiple operations on the same document (the document is cached)
+- Multiple operations on the same document (content is cached)
 - Keeping token costs down on the main conversation
 
 When `askSplitAndSynthesize` is enabled, documents exceeding `askMaxInputTokens` are automatically split into overlapping chunks. Each chunk is processed separately, and the results are synthesized into a single coherent answer. The final response is provided in the same language as your request, regardless of the document's language.
@@ -217,28 +235,64 @@ List documents in the stash.
 
 #### stash_search
 
-Search filenames and content across the stash. Quoted phrases are supported.
+Search filenames and content across the stash. All search terms must be present (AND logic). Filename matches are listed first. Use quotes for exact phrases.
 
 **Parameters:**
-- `query` (required) - Search terms (use quotes for phrases)
+- `query` (required) - Search terms. Use quotes for phrases: `"sparkling wine"`
 - `topic` - Filter to a topic (optional)
-- `limit` - Max results (default: 20)
+- `ids` - Filter to specific document IDs (optional)
+- `limit` - Max documents to return (default: 20)
 - `offset` - Pagination offset (default: 0)
-- `contextLines` - Lines of context for matches (default: 2)
+- `maxMatchesPerDoc` - Max matches per document (default: 50)
+- `context` - Lines of context around each match (default: 1, max: 5). Controls both how close terms must appear to match AND how much surrounding text is returned.
 
 **Returns:**
 - `totalMatches` - Total matches found before pagination
 - `count` - Results returned after pagination
-- `results` - Documents with `matchType`, `matchCount`, and `snippet`
+- `results` - Array of documents, each with:
+  - `id`, `filename`, `fileType`, `summary`, `charCount`, `createdAt`
+  - `matchType` - `filename`, `content`, or `filename+content`
+  - `matches` - Array of `{ line, context }` for each match location
+
+Use the `line` values with `stash_extract` to jump directly to match locations.
 
 #### stash_extract
 
-Extract content from a stashed document for reading or question answering.
+Extract content from a stashed document for reading. Use line numbers from `stash_search` results to jump directly to matches.
 
 **Parameters:**
 - `id` (required) - Document ID from `stash_list`/`stash_search`
-- `maxChars`, `offset`, `search`, `contextChars` - Same behavior as `friendly_pdf_extract`
-- `ask`, `askMaxInputTokens`, `askMaxOutputTokens`, `askTimeout`, `askSplitAndSynthesize` - Same behavior as `friendly_pdf_extract`
+- `maxChars` - Maximum amount of text to return (default: 40,000 characters)
+- `offset` - Character position to start from (mutually exclusive with `line`)
+- `line` - Line number to start from (mutually exclusive with `offset`)
+
+**Returns:**
+- `id`, `filename`, `fileType`, `summary` - Document metadata
+- `totalChars` - Total characters in the document
+- `offset` - Character offset (included when using `line` for reference)
+- `line` - Line number (only when `line` parameter was used)
+- `content` - The extracted text content
+- `truncated` - Whether more content remains after this chunk
+
+#### stash_ask
+
+Have an LLM answer questions about a stashed document. The document is processed in a separate context, keeping your main conversation compact.
+
+**Parameters:**
+- `id` (required) - Document ID from `stash_list`/`stash_search`
+- `ask` (required) - Question or instruction for the LLM
+- `askMaxInputTokens` - Maximum input tokens per LLM call (default: 150,000)
+- `askMaxOutputTokens` - Maximum output tokens per LLM call (default: 4,096)
+- `askTimeout` - Timeout in milliseconds (default: 300,000 = 5 minutes)
+- `askSplitAndSynthesize` - For large documents: split into chunks, process each, then synthesize results (default: false)
+
+**Returns:**
+- `id`, `filename`, `fileType`, `summary` - Document metadata
+- `totalChars` - Total characters in the document
+- `ask` - The instruction that was given
+- `answer` - The LLM's response
+- `model` - The model that generated the response
+- `chunksProcessed` - Number of chunks processed
 
 ### Typical flow
 
@@ -246,7 +300,7 @@ Extract content from a stashed document for reading or question answering.
 2. Run `stash_process_inbox`
 3. Use `stash_list` to browse topics
 4. Use `stash_search` to find relevant docs
-5. Use `stash_extract` to read or ask questions about a specific doc
+5. Use `stash_extract` to read a specific doc, or `stash_ask` to ask questions about it
 
 ## Troubleshooting
 
