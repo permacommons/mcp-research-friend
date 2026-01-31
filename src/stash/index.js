@@ -33,4 +33,5 @@ export { askStashDocument, extractFromStash } from "./extract.js";
 export { detectFileType, extractText } from "./extractors.js";
 export { listStash } from "./list.js";
 export { processInbox } from "./process-inbox.js";
+export { reindexStash } from "./reindex.js";
 export { searchStash } from "./search.js";

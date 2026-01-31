@@ -11,6 +11,7 @@ import {
 	initializeStash,
 	listStash,
 	processInbox,
+	reindexStash,
 	searchStash,
 } from "./stash/index.js";
 import { askWeb } from "./web-ask.js";
@@ -349,6 +350,44 @@ server.registerTool(
 			const message = error instanceof Error ? error.message : String(error);
 			return {
 				content: [{ type: "text", text: `Error processing inbox: ${message}` }],
+				isError: true,
+			};
+		}
+	},
+);
+
+// reindex-stash - Reindex documents in the stash
+server.registerTool(
+	"reindex_stash",
+	{
+		title: "Reindex Stash",
+		description:
+			"Regenerate summaries, re-allocate topics, and update store metadata for stashed documents. " +
+			"If ids is omitted or empty, reindexes all documents.",
+		inputSchema: {
+			ids: z
+				.array(z.number().int().positive())
+				.optional()
+				.describe(
+					"Document IDs to reindex. If omitted or empty, all documents are reindexed.",
+				),
+		},
+	},
+	async (args) => {
+		try {
+			const result = await reindexStash({
+				...args,
+				_server: server,
+				_db: getDatabase(),
+				_stashRoot: getStashRoot(),
+			});
+			return {
+				content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+			};
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				content: [{ type: "text", text: `Error reindexing stash: ${message}` }],
 				isError: true,
 			};
 		}

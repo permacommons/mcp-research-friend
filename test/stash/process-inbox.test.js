@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { sampleTextForClassification } from "../../src/stash/classify.js";
 import { StashDatabase } from "../../src/stash/db.js";
 import { processInbox } from "../../src/stash/process-inbox.js";
 
@@ -242,5 +243,26 @@ describe("processInbox", () => {
 
 		const topics = db.getTopics();
 		assert.strictEqual(topics.length, 1);
+	});
+
+	it("should return full text for short documents", () => {
+		const text = "Short document text.";
+		const sampled = sampleTextForClassification(text);
+		assert.strictEqual(sampled, text);
+	});
+
+	it("should sample from start, middle, and end for long documents", () => {
+		const text =
+			"STARTTOKEN\n" +
+			"a".repeat(9800) +
+			"MIDTOKEN\n" +
+			"b".repeat(9800) +
+			"ENDTOKEN";
+
+		const sampled = sampleTextForClassification(text, { rng: () => 0.42 });
+
+		assert.ok(sampled.includes("STARTTOKEN"));
+		assert.ok(sampled.includes("MIDTOKEN"));
+		assert.ok(sampled.includes("ENDTOKEN"));
 	});
 });
