@@ -174,7 +174,6 @@ Fetches a URL (PDF or web page) and has an LLM answer questions about it. Auto-d
 
 **Ask mode** uses MCP sampling to have an LLM process the document with any instruction. This is useful for:
 - Large documents that would overwhelm context
-- Multiple operations on the same document (content is cached)
 - Keeping token costs down on the main conversation
 
 When `askSplitAndSynthesize` is enabled, documents exceeding `askMaxInputTokens` are automatically split into overlapping chunks. Each chunk is processed separately, and the results are synthesized into a single coherent answer. The final response is provided in the same language as your request, regardless of the document's language.
@@ -216,9 +215,9 @@ Process files in `inbox/`, classify them into topics, extract text, and store re
 For long documents, classification uses sampled sections (start/middle/end plus a few random chunks) to improve topic accuracy.
 
 **Returns:**
-- `processed` - Number of files processed
-- `skipped` - Number of files skipped
+- `processed` - Array of filenames successfully processed
 - `errors` - Any errors encountered
+- `documents` - Array of created document records
 
 #### reindex_stash
 
@@ -230,6 +229,7 @@ Regenerate summaries, re-allocate topics, and update store metadata for stashed 
 **Returns:**
 - `reindexed` - Document IDs reindexed
 - `errors` - Any errors encountered
+- `documents` - Array of updated document records
 
 #### stash_list
 
@@ -242,8 +242,12 @@ List documents in the stash.
 
 **Returns:**
 - `type` - `all` or `topic`
+- `totalDocuments` - Total documents (only when `type` is `all`)
+- `count` - Results returned after pagination
+- `offset` - Pagination offset used
+- `limit` - Pagination limit used
 - `topics` - Summary of known topics and doc counts
-- `documents` - Document list with metadata
+- `documents` - Document list with metadata (includes `isPrimary` when listing a topic)
 
 #### stash_search
 
@@ -259,7 +263,7 @@ Search filenames and content across the stash. All search terms must be present 
 - `context` - Lines of context around each match (default: 1, max: 5). Controls both how close terms must appear to match AND how much surrounding text is returned.
 
 **Returns:**
-- `totalMatches` - Total matches found before pagination
+- `totalMatches` - Total documents matched before pagination
 - `count` - Results returned after pagination
 - `results` - Array of documents, each with:
   - `id`, `filename`, `fileType`, `summary`, `charCount`, `createdAt`
