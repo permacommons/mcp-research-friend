@@ -32,7 +32,7 @@ export function listStash({ topic = null, limit = 50, offset = 0, _db }) {
 	// List documents with the specified topic
 	const documents = _db.getDocumentsByTopic(topic, limit, offset);
 	return {
-		type: "documents",
+		type: "topic",
 		topic,
 		count: documents.length,
 		offset,

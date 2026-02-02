@@ -139,7 +139,7 @@ describe("listStash", () => {
 
 			const result = listStash({ topic: "ml", _db: db });
 
-			assert.strictEqual(result.type, "documents");
+			assert.strictEqual(result.type, "topic");
 			assert.strictEqual(result.topic, "ml");
 			assert.strictEqual(result.documents.length, 1);
 			assert.strictEqual(result.documents[0].filename, "doc1.pdf");
