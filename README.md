@@ -50,16 +50,12 @@ The server communicates over stdio (standard input/output), which is how MCP cli
 
 How you add Research Friend depends on which MCP client you're using. Here's a general example of what the configuration might look like:
 
-```json
-{
-  "mcpServers": {
-    "research-friend": {
-      "command": "node",
-      "args": ["src/index.js"],
-      "cwd": "/path/to/mcp-research-friend"
-    }
-  }
-}
+```toml
+[[mcp_servers]]
+id = "research-friend"
+command = "node"
+args = ["/path/to/mcp-research-friend/src"]
+transport = "stdio"
 ```
 
 Replace `/path/to/mcp-research-friend` with the actual path to this folder on your computer.
