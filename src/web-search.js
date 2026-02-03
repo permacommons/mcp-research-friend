@@ -245,6 +245,7 @@ export async function searchWeb({
 	const runSearch = async (isHeadless) => {
 		const context = await _chromium.launchPersistentContext(userDataDir, {
 			headless: isHeadless,
+			channel: "chromium",
 			args: ["--disable-blink-features=AutomationControlled"],
 			viewport: { width: 1280, height: 720 },
 		});
